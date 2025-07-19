@@ -1,100 +1,53 @@
-let csvData = [];
-
 function generateTimetable() {
-  const fileInput = document.getElementById("csvFile");
-  if (!fileInput.files.length) {
-    alert("Please upload a CSV file.");
-    return;
-  }
+  const subjectsInput = document.getElementById("subjects").value;
 
-  const reader = new FileReader();
-  reader.onload = function (e) {
-    const text = e.target.result;
-    parseCSV(text);
-  };
-  reader.readAsText(fileInput.files[0]);
-}
+  // 📌 Trim input and split by comma, filter out empty items
+  const subjectList = subjectsInput
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
 
-function parseCSV(data) {
-  const rows = data.trim().split("\n").map(row => row.split(","));
-  const headers = rows.shift();
-  csvData = rows.map(row =>
-    row.reduce((acc, val, i) => {
-      acc[headers[i]] = val.trim();
-      return acc;
-    }, {})
-  );
+  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+  const periodsPerDay = 6;
 
-  createTimetableUI(generateLogic(csvData));
-}
+  const timetable = [];
 
-function generateLogic(data) {
-  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const timetable = {};
-  const totalPeriods = 10;
-  const teachingPeriods = 7;
-  const breakIndices = [2, 4, 9]; // Period 3: Interval, Period 5: Lunch, Period 10: Break
-
-  days.forEach(day => {
-    timetable[day] = Array(totalPeriods).fill("FREE");
-  });
-
-  const usedLabs = {};
-
-  for (let i = 0; i < teachingPeriods * days.length && data.length; i++) {
-    const day = days[i % days.length];
-    for (let period = 0; period < totalPeriods; period++) {
-      if (breakIndices.includes(period)) {
-        timetable[day][period] = period === 4 ? "Lunch" : "Interval";
+  for (let i = 0; i < days.length; i++) {
+    const daySchedule = [];
+    for (let j = 0; j < periodsPerDay; j++) {
+      if (subjectList.length > 0) {
+        // ✅ Assign a random subject instead of "Free Period"
+        const subjectIndex = Math.floor(Math.random() * subjectList.length);
+        daySchedule.push(subjectList[subjectIndex]);
       } else {
-        const subject = data.shift();
-        if (!subject) break;
-        const key = `${subject.Class}_${period}`;
-
-        if (subject.Type === "Lab" && usedLabs[key]) {
-          data.push(subject); // Retry later
-          continue;
-        }
-
-        if (subject.Type === "Lab") usedLabs[key] = true;
-        timetable[day][period] = `${subject.Subject}\n${subject.Teacher}`;
+        // If no subjects provided, show "Free Period"
+        daySchedule.push("Free Period");
       }
     }
+    timetable.push(daySchedule);
   }
 
-  return timetable;
+  renderTimetable(days, periodsPerDay, timetable);
 }
 
-function createTimetableUI(timetable) {
-  let html = `<table><thead><tr><th>Period</th>`;
-  Object.keys(timetable).forEach(day => {
-    html += `<th>${day}</th>`;
-  });
-  html += "</tr></thead><tbody>";
+function renderTimetable(days, periodsPerDay, timetable) {
+  let html = "<table>";
+  html += "<tr><th>Day</th>";
 
-  for (let i = 0; i < 10; i++) {
-    html += `<tr><td>Period ${i + 1}</td>`;
-    for (const day in timetable) {
-      html += `<td>${timetable[day][i]}</td>`;
+  for (let i = 1; i <= periodsPerDay; i++) {
+    html += `<th>Period ${i}</th>`;
+  }
+  html += "</tr>";
+
+  for (let i = 0; i < days.length; i++) {
+    html += `<tr><td>${days[i]}</td>`;
+    for (let j = 0; j < periodsPerDay; j++) {
+      html += `<td>${timetable[i][j]}</td>`;
     }
     html += "</tr>";
   }
 
-  html += "</tbody></table>";
-  document.getElementById("timetableOutput").innerHTML = html;
-}
+  html += "</table>";
 
-function downloadAsPDF() {
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-  doc.text("Timetable", 14, 16);
-  doc.autoTable({ html: 'table', startY: 20 });
-  doc.save("timetable.pdf");
-}
-
-function downloadAsExcel() {
-  const ws = XLSX.utils.table_to_sheet(document.querySelector("table"));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Timetable");
-  XLSX.writeFile(wb, "timetable.xlsx");
+  document.getElementById("timetable-container").innerHTML = html;
 }
