@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Automatic Timetable Generator</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>📅 Automatic Timetable Generator</h1>
+    <input type="file" id="csvFile" accept=".csv" />
+    <button onclick="generateTimetable()">Generate Timetable</button>
+    <div id="timetableOutput"></div>
+    <button onclick="downloadAsPDF()">Download PDF</button>
+    <button onclick="downloadAsExcel()">Download Excel</button>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
