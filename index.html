@@ -3,51 +3,55 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Automatic Timetable Generator</title>
+  <title>Timetable Generator</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet" />
   <style>
     body {
       font-family: 'Poppins', sans-serif;
+      background: linear-gradient(to right, #667eea, #764ba2);
     }
     table {
       width: 100%;
     }
     th, td {
       text-align: center;
-      padding: 8px;
-      border: 1px solid #e5e7eb;
+      padding: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
     }
     th {
-      background-color: #f3f4f6;
+      background-color: rgba(255, 255, 255, 0.2);
+      font-weight: 600;
+      color: #fff;
+    }
+    td {
+      color: #fff;
     }
   </style>
 </head>
-<body class="bg-gray-50 text-gray-800">
-  <div class="container mx-auto px-4 py-10">
-    <div class="text-center mb-8">
-      <h1 class="text-4xl font-bold text-blue-600">Automatic Timetable Generator</h1>
-      <p class="text-lg text-gray-600 mt-2">Upload your CSV file to generate a beautiful timetable</p>
-    </div>
+<body class="min-h-screen flex items-center justify-center p-6 text-white">
 
-    <div class="max-w-xl mx-auto bg-white p-6 rounded-xl shadow-md">
-      <label class="block text-sm font-medium text-gray-700 mb-2" for="csvFile">Choose CSV File</label>
-      <input type="file" id="csvFile" accept=".csv" class="mb-4 block w-full text-sm text-gray-500
-        file:mr-4 file:py-2 file:px-4
-        file:rounded-lg file:border-0
-        file:text-sm file:font-semibold
-        file:bg-blue-50 file:text-blue-700
-        hover:file:bg-blue-100
-      " />
-      <button onclick="processCSV()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300">
-        Generate Timetable
-      </button>
-    </div>
+  <div class="w-full max-w-5xl">
+    <div class="bg-white/10 backdrop-blur-lg p-8 rounded-2xl shadow-2xl">
+      <div class="text-center mb-6">
+        <h1 class="text-4xl font-bold mb-2 text-white">📅 Timetable Generator</h1>
+        <p class="text-sm text-gray-200">Upload your CSV file and view the generated timetable instantly</p>
+      </div>
 
-    <div id="timetable-container" class="mt-10 hidden">
-      <h2 class="text-2xl font-bold text-center mb-4">Generated Timetable</h2>
-      <div class="overflow-x-auto">
-        <table id="timetable" class="table-auto border-collapse bg-white rounded-xl shadow-md"></table>
+      <div class="flex flex-col sm:flex-row items-center gap-4 justify-center">
+        <input type="file" id="csvFile" accept=".csv"
+          class="block w-full sm:w-auto px-4 py-2 bg-white/20 text-white rounded-xl shadow focus:outline-none cursor-pointer file:hidden" />
+        <button onclick="processCSV()"
+          class="bg-white text-indigo-600 hover:bg-indigo-100 font-semibold px-6 py-2 rounded-xl transition-all duration-300">
+          Generate 📤
+        </button>
+      </div>
+
+      <div id="timetable-container" class="mt-10 hidden">
+        <h2 class="text-2xl font-semibold text-center mb-4">Generated Timetable</h2>
+        <div class="overflow-x-auto rounded-xl shadow-inner">
+          <table id="timetable" class="table-auto w-full rounded-xl overflow-hidden"></table>
+        </div>
       </div>
     </div>
   </div>
@@ -63,7 +67,7 @@
       }
 
       const reader = new FileReader();
-      reader.onload = function(e) {
+      reader.onload = function (e) {
         const contents = e.target.result;
         const lines = contents.trim().split('\n');
         const data = lines.map(line => line.split(','));
@@ -71,7 +75,6 @@
         const table = document.getElementById('timetable');
         table.innerHTML = '';
 
-        // Insert rows
         for (let i = 0; i < data.length; i++) {
           const row = document.createElement('tr');
           for (let j = 0; j < data[i].length; j++) {
