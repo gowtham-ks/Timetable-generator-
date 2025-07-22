@@ -1,95 +1,169 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
+<!DOCTYPE html><html lang="en"><head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Timetable Generator</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet" />
+  <title>Automatic Timetable Generator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
   <style>
     body {
-      font-family: 'Poppins', sans-serif;
-      background: linear-gradient(to right, #667eea, #764ba2);
-    }
-    table {
-      width: 100%;
-    }
-    th, td {
-      text-align: center;
-      padding: 10px;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-    }
-    th {
-      background-color: rgba(255, 255, 255, 0.2);
-      font-weight: 600;
-      color: #fff;
-    }
-    td {
-      color: #fff;
-    }
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(120deg, #f5f7fa, #c3cfe2);
+      margin: 0;
+      padding: 0;
+    }.container {
+  max-width: 1000px;
+  margin: 50px auto;
+  padding: 20px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+h1 {
+  text-align: center;
+  margin-bottom: 30px;
+  font-size: 2rem;
+  color: #333;
+}
+
+label,
+select,
+input {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 1rem;
+  width: 100%;
+}
+
+select,
+input[type="file"] {
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+}
+
+button {
+  margin-top: 15px;
+  background: #007bff;
+  color: white;
+  padding: 12px 20px;
+  font-size: 1rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+button:hover {
+  background: #0056b3;
+}
+
+#outputTable {
+  margin-top: 30px;
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#outputTable th,
+#outputTable td {
+  border: 1px solid #ddd;
+  padding: 10px;
+  text-align: center;
+}
+
+#outputTable th {
+  background-color: #007bff;
+  color: white;
+}
+
+.hidden {
+  display: none;
+}
+
   </style>
-</head>
-<body class="min-h-screen flex items-center justify-center p-6 text-white">
+</head><body>
+  <div class="container">
+    <h1>Automatic Timetable Generator</h1><label for="generationMode">Select Generation Mode:</label>
+<select id="generationMode" onchange="toggleClassOptions()">
+  <option value="all">Generate for All Classes</option>
+  <option value="single">Generate for Single Class</option>
+</select>
 
-  <div class="w-full max-w-5xl">
-    <div class="bg-white/10 backdrop-blur-lg p-8 rounded-2xl shadow-2xl">
-      <div class="text-center mb-6">
-        <h1 class="text-4xl font-bold mb-2 text-white">📅 Timetable Generator</h1>
-        <p class="text-sm text-gray-200">Upload your CSV file and view the generated timetable instantly</p>
-      </div>
+<div id="classOptions" class="hidden">
+  <label for="department">Select Department:</label>
+  <select id="department">
+    <option value="CSE">CSE</option>
+    <option value="ECE">ECE</option>
+    <option value="EEE">EEE</option>
+    <option value="MECH">MECH</option>
+    <option value="AIDS">AIDS</option>
+    
+  </select>
 
-      <div class="flex flex-col sm:flex-row items-center gap-4 justify-center">
-        <input type="file" id="csvFile" accept=".csv"
-          class="block w-full sm:w-auto px-4 py-2 bg-white/20 text-white rounded-xl shadow focus:outline-none cursor-pointer file:hidden" />
-        <button onclick="processCSV()"
-          class="bg-white text-indigo-600 hover:bg-indigo-100 font-semibold px-6 py-2 rounded-xl transition-all duration-300">
-          Generate 📤
-        </button>
-      </div>
+  <label for="year">Select Year:</label>
+  <select id="year">
+    <option value="I">I</option>
+    <option value="II">II</option>
+    <option value="III">III</option>
+    <option value="IV">IV</option>
+  </select>
 
-      <div id="timetable-container" class="mt-10 hidden">
-        <h2 class="text-2xl font-semibold text-center mb-4">Generated Timetable</h2>
-        <div class="overflow-x-auto rounded-xl shadow-inner">
-          <table id="timetable" class="table-auto w-full rounded-xl overflow-hidden"></table>
-        </div>
-      </div>
-    </div>
-  </div>
+  <label for="section">Select Section:</label>
+  <select id="section">
+    <option value="A">A</option>
+    <option value="B">B</option>
+    <option value="C">C</option>
+    <!-- Add more sections -->
+  </select>
+</div>
 
-  <script>
-    function processCSV() {
-      const fileInput = document.getElementById('csvFile');
+<label for="csvFile">Upload CSV File:</label>
+<input type="file" id="csvFile" accept=".csv" />
+<button onclick="generateTimetable()">Generate Timetable</button>
+<button onclick="downloadExcel()">Download Excel</button>
+
+<table id="outputTable" class="hidden"></table>
+
+  </div>  <script>
+    function toggleClassOptions() {
+      const mode = document.getElementById('generationMode').value;
+      document.getElementById('classOptions').classList.toggle('hidden', mode !== 'single');
+    }
+
+    function generateTimetable() {
+      const fileInput = document.getElementById("csvFile");
       const file = fileInput.files[0];
-
       if (!file) {
         alert("Please upload a CSV file.");
         return;
       }
-
       const reader = new FileReader();
       reader.onload = function (e) {
-        const contents = e.target.result;
-        const lines = contents.trim().split('\n');
-        const data = lines.map(line => line.split(','));
-
-        const table = document.getElementById('timetable');
-        table.innerHTML = '';
-
-        for (let i = 0; i < data.length; i++) {
-          const row = document.createElement('tr');
-          for (let j = 0; j < data[i].length; j++) {
-            const cell = document.createElement(i === 0 ? 'th' : 'td');
-            cell.textContent = data[i][j].trim();
-            row.appendChild(cell);
-          }
-          table.appendChild(row);
-        }
-
-        document.getElementById('timetable-container').classList.remove('hidden');
+        const rows = e.target.result.split("\n").map(row => row.split(","));
+        const table = document.getElementById("outputTable");
+        table.innerHTML = "";
+        rows.forEach((row, index) => {
+          const tr = document.createElement("tr");
+          row.forEach(cell => {
+            const cellElement = index === 0 ? document.createElement("th") : document.createElement("td");
+            cellElement.textContent = cell.trim();
+            tr.appendChild(cellElement);
+          });
+          table.appendChild(tr);
+        });
+        table.classList.remove("hidden");
       };
-
       reader.readAsText(file);
     }
-  </script>
-</body>
-</html>
+
+    function downloadExcel() {
+      const table = document.getElementById("outputTable");
+      if (table.classList.contains("hidden")) {
+        alert("Please generate a timetable first.");
+        return;
+      }
+      const wb = XLSX.utils.table_to_book(table);
+      XLSX.writeFile(wb, "Generated_Timetable.xlsx");
+    }
+  </script></body></html>
