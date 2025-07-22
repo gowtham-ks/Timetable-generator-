@@ -1,121 +1,92 @@
-<!DOCTYPE html><html lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Automatic Timetable Generator</title>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet" />
   <style>
-    body { background: #f8f9fa; padding: 2rem; }
-    table { width: 100%; border-collapse: collapse; margin-top: 2rem; }
-    th, td { border: 1px solid #dee2e6; padding: 0.75rem; text-align: center; }
-    th { background-color: #343a40; color: white; }
-    .break { background-color: #ffe8a1; font-weight: bold; }
+    body {
+      font-family: 'Poppins', sans-serif;
+    }
+    table {
+      width: 100%;
+    }
+    th, td {
+      text-align: center;
+      padding: 8px;
+      border: 1px solid #e5e7eb;
+    }
+    th {
+      background-color: #f3f4f6;
+    }
   </style>
 </head>
-<body>
-  <div class="container">
-    <h1 class="text-center mb-4">Automatic Timetable Generator</h1><div class="mb-3">
-  <label for="csvFile" class="form-label">Upload CSV File:</label>
-  <input class="form-control" type="file" id="csvFile" accept=".csv" />
-</div>
+<body class="bg-gray-50 text-gray-800">
+  <div class="container mx-auto px-4 py-10">
+    <div class="text-center mb-8">
+      <h1 class="text-4xl font-bold text-blue-600">Automatic Timetable Generator</h1>
+      <p class="text-lg text-gray-600 mt-2">Upload your CSV file to generate a beautiful timetable</p>
+    </div>
 
-<button class="btn btn-primary" onclick="generateTimetable()">Generate Timetable</button>
-<button class="btn btn-success ms-2" onclick="downloadExcel()">Download as Excel</button>
-<button class="btn btn-danger ms-2" onclick="downloadPDF()">Download as PDF</button>
+    <div class="max-w-xl mx-auto bg-white p-6 rounded-xl shadow-md">
+      <label class="block text-sm font-medium text-gray-700 mb-2" for="csvFile">Choose CSV File</label>
+      <input type="file" id="csvFile" accept=".csv" class="mb-4 block w-full text-sm text-gray-500
+        file:mr-4 file:py-2 file:px-4
+        file:rounded-lg file:border-0
+        file:text-sm file:font-semibold
+        file:bg-blue-50 file:text-blue-700
+        hover:file:bg-blue-100
+      " />
+      <button onclick="processCSV()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300">
+        Generate Timetable
+      </button>
+    </div>
 
-<div id="timetable" class="mt-5"></div>
+    <div id="timetable-container" class="mt-10 hidden">
+      <h2 class="text-2xl font-bold text-center mb-4">Generated Timetable</h2>
+      <div class="overflow-x-auto">
+        <table id="timetable" class="table-auto border-collapse bg-white rounded-xl shadow-md"></table>
+      </div>
+    </div>
+  </div>
 
-  </div>  <script>
-    let timetable = Array.from({ length: 10 }, () => Array(6).fill("FREE"));
+  <script>
+    function processCSV() {
+      const fileInput = document.getElementById('csvFile');
+      const file = fileInput.files[0];
 
-    const breaks = [2, 5, 8];
-    const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
-    function generateTimetable() {
-      const fileInput = document.getElementById("csvFile");
-      if (!fileInput.files.length) return alert("Please upload a CSV file");
-
-      Papa.parse(fileInput.files[0], {
-        header: true,
-        skipEmptyLines: true,
-        complete: ({ data }) => {
-          let subjects = data;
-          let subjectQueue = [];
-
-          subjects.forEach(sub => {
-            let count = parseInt(sub.HoursPerWeek);
-            for (let i = 0; i < count; i++) {
-              subjectQueue.push(`${sub.Subject} (${sub.Teacher})`);
-            }
-          });
-
-          // Shuffle to randomize distribution
-          subjectQueue = subjectQueue.sort(() => 0.5 - Math.random());
-
-          let subIndex = 0;
-          for (let d = 0; d < 6; d++) {
-            for (let p = 0; p < 10; p++) {
-              if (breaks.includes(p)) {
-                timetable[p][d] = ["Interval", "Lunch", "Interval"][breaks.indexOf(p)];
-                continue;
-              }
-              if (subIndex < subjectQueue.length) {
-                timetable[p][d] = subjectQueue[subIndex++];
-              } else {
-                timetable[p][d] = "FREE";
-              }
-            }
-          }
-
-          renderTable();
-        },
-      });
-    }
-
-    function renderTable() {
-      let html = '<table class="table table-bordered"><thead><tr><th>Period</th>';
-      days.forEach(day => html += `<th>${day}</th>`);
-      html += '</tr></thead><tbody>';
-
-      for (let p = 0; p < 10; p++) {
-        html += `<tr><th>Period ${p + 1}</th>`;
-        for (let d = 0; d < 6; d++) {
-          const val = timetable[p][d];
-          html += `<td class="${breaks.includes(p) ? 'break' : ''}">${val}</td>`;
-        }
-        html += '</tr>';
+      if (!file) {
+        alert("Please upload a CSV file.");
+        return;
       }
-      html += '</tbody></table>';
-      document.getElementById("timetable").innerHTML = html;
-    }
 
-    function downloadExcel() {
-      const ws = XLSX.utils.aoa_to_sheet([
-        ["Period", ...days],
-        ...timetable.map((row, i) => ["Period " + (i + 1), ...row])
-      ]);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Timetable");
-      XLSX.writeFile(wb, "Timetable.xlsx");
-    }
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const contents = e.target.result;
+        const lines = contents.trim().split('\n');
+        const data = lines.map(line => line.split(','));
 
-    function downloadPDF() {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-      doc.setFontSize(12);
-      doc.text("Timetable", 14, 10);
+        const table = document.getElementById('timetable');
+        table.innerHTML = '';
 
-      let y = 20;
-      doc.autoTable({
-        head: [["Period", ...days]],
-        body: timetable.map((row, i) => ["Period " + (i + 1), ...row]),
-        startY: y,
-        theme: 'grid',
-      });
-      doc.save("Timetable.pdf");
+        // Insert rows
+        for (let i = 0; i < data.length; i++) {
+          const row = document.createElement('tr');
+          for (let j = 0; j < data[i].length; j++) {
+            const cell = document.createElement(i === 0 ? 'th' : 'td');
+            cell.textContent = data[i][j].trim();
+            row.appendChild(cell);
+          }
+          table.appendChild(row);
+        }
+
+        document.getElementById('timetable-container').classList.remove('hidden');
+      };
+
+      reader.readAsText(file);
     }
-  </script></body>
+  </script>
+</body>
 </html>
