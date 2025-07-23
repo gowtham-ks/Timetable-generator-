@@ -1,50 +1,231 @@
+/* ==== ROOT VARIABLES ==== */
+:root {
+  --bg-light: #f9fafb;
+  --bg-dark: #1e1f2f;
+  --text-light: #1e293b;
+  --text-dark: #e2e8f0;
+  --primary: #6366f1;
+  --primary-dark: #4f46e5;
+  --accent: #60a5fa;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --success: #10b981;
+  --border-light: #cbd5e1;
+  --border-dark: #3b4252;
+  --card-bg-light: #ffffff;
+  --card-bg-dark: #2d3145;
+}
+
+/* ==== BASE ==== */
 body {
+  font-family: 'Poppins', sans-serif;
   margin: 0;
-  font-family: "Segoe UI", sans-serif;
-  background: #f3f4f6;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding: 2rem;
+  padding: 24px;
+  background: linear-gradient(120deg, #e0e7ff, #c7d2fe);
+  color: var(--text-light);
+  transition: background 0.3s, color 0.3s;
 }
+
+body.dark {
+  background: linear-gradient(120deg, #1e1f2f, #111320);
+  color: var(--text-dark);
+}
+
+/* ==== DARK MODE TOGGLE ==== */
+.dark-toggle {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  border: none;
+  color: white;
+  font-size: 24px;
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+  cursor: pointer;
+  z-index: 999;
+  transition: transform 0.3s;
+}
+.dark-toggle:hover {
+  transform: rotate(90deg) scale(1.05);
+}
+
+/* ==== CONTAINER ==== */
 .container {
+  background: var(--card-bg-light);
+  border-radius: 20px;
+  padding: 40px;
   max-width: 800px;
-  width: 100%;
-  background: white;
-  border-radius: 16px;
-  padding: 2rem;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  margin: 80px auto 40px auto;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+  transition: background 0.3s;
 }
+body.dark .container {
+  background: var(--card-bg-dark);
+}
+
+/* ==== HEADINGS ==== */
 h1 {
   text-align: center;
-  margin-bottom: 1rem;
+  font-size: 2.5rem;
+  margin-bottom: 30px;
+  background: linear-gradient(to right, var(--primary), var(--accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
-input[type="file"] {
-  margin-bottom: 1rem;
+
+/* ==== LABELS & INPUTS ==== */
+label {
+  font-weight: 600;
+  font-size: 1rem;
+  margin-top: 20px;
+  display: block;
+  color: inherit;
 }
-button {
-  background: #2563eb;
-  color: white;
+input[type="number"],
+input[type="text"],
+input[type="file"],
+select {
+  width: 100%;
+  padding: 12px 16px;
+  margin-top: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border-light);
+  background-color: var(--bg-light);
+  font-size: 1rem;
+  transition: all 0.3s;
+  color: var(--text-light);
+}
+input:focus, select:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 8px var(--primary);
+}
+body.dark input,
+body.dark select {
+  background-color: #2a2d3e;
+  color: var(--text-dark);
+  border-color: var(--border-dark);
+}
+
+/* ==== BUTTON ==== */
+button:not(.dark-toggle) {
+  margin-top: 30px;
+  padding: 14px;
+  width: 100%;
   border: none;
-  padding: 0.75rem 1.5rem;
-  margin: 0.5rem 0.25rem;
-  border-radius: 8px;
+  font-weight: 700;
+  font-size: 1.1rem;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  color: white;
+  border-radius: 25px;
   cursor: pointer;
-  transition: 0.3s ease;
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.3);
+  transition: transform 0.3s, box-shadow 0.3s;
 }
 button:hover {
-  background: #1d4ed8;
+  transform: scale(1.05);
+  box-shadow: 0 10px 25px rgba(99, 102, 241, 0.4);
 }
+
+/* ==== OUTPUT & STATUS ==== */
+#output {
+  margin-top: 30px;
+  padding: 20px;
+  text-align: center;
+  font-weight: 600;
+  display: none;
+  background-color: var(--card-bg-light);
+  border-radius: 10px;
+}
+body.dark #output {
+  background-color: #3a3f5c;
+  color: var(--text-dark);
+}
+
+#statusMessage {
+  margin-top: 20px;
+  font-weight: 600;
+  font-size: 1rem;
+}
+#statusMessage.error { color: var(--danger); }
+#statusMessage.success { color: var(--success); }
+#statusMessage.warn { color: var(--warning); }
+
+/* ==== TIMETABLE CONTAINER ==== */
+#timetableContainer {
+  margin-top: 40px;
+}
+
+.timetable-card {
+  margin-bottom: 40px;
+  padding: 24px;
+  background: var(--card-bg-light);
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(60, 90, 180, 0.07);
+  overflow-x: auto;
+  transition: background 0.3s;
+}
+body.dark .timetable-card {
+  background: var(--card-bg-dark);
+}
+.timetable-card h2 {
+  font-size: 1.2rem;
+  margin-bottom: 16px;
+  color: var(--primary);
+}
+
+/* ==== TABLE ==== */
 table {
   width: 100%;
-  margin-top: 1rem;
   border-collapse: collapse;
+  font-size: 0.95rem;
 }
 th, td {
-  border: 1px solid #ddd;
-  padding: 0.75rem;
+  border: 1px solid #dbeafe;
+  padding: 10px;
   text-align: center;
+  word-break: break-word;
+  min-width: 100px;
 }
 th {
-  background-color: #f9fafb;
+  background-color: #e0e7ff;
+  font-weight: 600;
+}
+body.dark th {
+  background-color: #181c2f;
+  color: var(--text-dark);
+}
+tr:nth-child(even) td {
+  background-color: #f3f4f6;
+}
+body.dark tr:nth-child(even) td {
+  background-color: #26293a;
+}
+
+/* ==== WARNINGS ==== */
+.warning {
+  background: #fff7ed;
+  color: #b45309;
+  padding: 16px;
+  border-radius: 12px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  border-left: 4px solid #f59e0b;
+}
+
+/* ==== RESPONSIVE ==== */
+@media (max-width: 700px) {
+  .container {
+    padding: 20px;
+  }
+  table {
+    font-size: 0.85rem;
+  }
+  th, td {
+    min-width: 80px;
+    padding: 6px;
+  }
 }
