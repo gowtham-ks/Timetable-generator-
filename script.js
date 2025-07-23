@@ -1,109 +1,146 @@
-let subjects = [];
+// script.js
 
-function loadCSV() {
-  const file = document.getElementById("csvInput").files[0];
+let timetableData = {};
+let teacherSchedule = {};
 
-  if (!file) {
-    alert("Please select a CSV file.");
-    return;
-  }
+const lunchPeriod = 6;
+const breakPeriods = [3, 9];
+const totalPeriods = 10;
+const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
+function handleFileUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
   const reader = new FileReader();
-
   reader.onload = function (e) {
     const text = e.target.result;
-    const rows = text.trim().split("\n");
-
-    subjects = rows.slice(1).map((row) => {
-      const [subject, teacher, periods] = row.split(",");
-      return {
-        subject: subject.trim(),
-        teacher: teacher.trim(),
-        periods: parseInt(periods.trim())
-      };
-    });
-
-    generateTimetable();
+    const parsedData = Papa.parse(text, {
+      header: true,
+      skipEmptyLines: true,
+    }).data;
+    generateTimetables(parsedData);
   };
-
   reader.readAsText(file);
 }
 
-function generateTimetable() {
-  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-  const periodsPerDay = 6;
-  const totalSlots = days.length * periodsPerDay;
+function generateTimetables(data) {
+  timetableData = {};
+  teacherSchedule = {};
 
-  // Flatten subjects into a pool of [subject, teacher] repeated by required periods
-  let subjectPool = [];
-
-  subjects.forEach((item) => {
-    for (let i = 0; i < item.periods; i++) {
-      subjectPool.push({
-        subject: item.subject,
-        teacher: item.teacher
-      });
+  const periodsPerWeekMap = {};
+  data.forEach((row) => {
+    const key = `${row.Department}_${row.Year}_${row.Section}`;
+    if (!timetableData[key]) {
+      timetableData[key] = createEmptyTimetable();
     }
+    if (!periodsPerWeekMap[key]) {
+      periodsPerWeekMap[key] = [];
+    }
+    periodsPerWeekMap[key].push({
+      subject: row.Subject,
+      teacher: row.Teacher,
+      periods: parseInt(row.PeriodsPerWeek),
+      isLab: row.Type.toLowerCase() === "lab",
+    });
   });
 
-  // Fill remaining slots if needed
-  while (subjectPool.length < totalSlots) {
-    subjectPool.push({
-      subject: "Free Period",
-      teacher: ""
-    });
+  for (const classKey in periodsPerWeekMap) {
+    const subjects = periodsPerWeekMap[classKey];
+    allocateSubjectsToClass(classKey, subjects);
   }
 
-  // Shuffle the pool randomly
-  shuffleArray(subjectPool);
+  renderTimetables();
+}
 
-  // Generate timetable
-  const timetable = [];
+function createEmptyTimetable() {
+  const table = {};
+  days.forEach((day) => {
+    table[day] = Array(totalPeriods).fill("FREE");
+    if (breakPeriods.includes(3)) table[day][2] = "Break";
+    if (breakPeriods.includes(9)) table[day][8] = "Break";
+    table[day][lunchPeriod - 1] = "Lunch";
+  });
+  return table;
+}
 
-  let k = 0;
-  for (let i = 0; i < days.length; i++) {
-    const daySchedule = [];
-    for (let j = 0; j < periodsPerDay; j++) {
-      const entry = subjectPool[k++];
+function isAvailable(classKey, day, period, teacher, isLab = false) {
+  if (isLab && period >= totalPeriods - 1) return false;
+  if (timetableData[classKey][day][period] !== "FREE") return false;
+  if (isLab && timetableData[classKey][day][period + 1] !== "FREE") return false;
 
-      daySchedule.push({
-        subject: entry.subject,
-        teacher: entry.teacher
-      });
+  for (const otherClass in timetableData) {
+    const slot = `${day}_${period}`;
+    const nextSlot = `${day}_${period + 1}`;
+    if (
+      teacherSchedule[teacher]?.includes(slot) ||
+      (isLab && teacherSchedule[teacher]?.includes(nextSlot))
+    ) {
+      return false;
     }
-    timetable.push(daySchedule);
   }
-
-  renderTimetable(days, periodsPerDay, timetable);
+  return true;
 }
 
-function renderTimetable(days, periodsPerDay, timetable) {
-  let html = "<table border='1'>";
-  html += "<tr><th>Day</th>";
+function allocateSubjectsToClass(classKey, subjects) {
+  subjects.forEach((subjectData) => {
+    let allocated = 0;
+    for (let d = 0; d < days.length; d++) {
+      const day = days[d];
+      for (let p = 0; p < totalPeriods; p++) {
+        if (breakPeriods.includes(p + 1) || p + 1 === lunchPeriod) continue;
 
-  for (let i = 1; i <= periodsPerDay; i++) {
-    html += `<th>Period ${i}</th>`;
-  }
-  html += "</tr>";
+        if (subjectData.isLab) {
+          if (isAvailable(classKey, day, p, subjectData.teacher, true)) {
+            timetableData[classKey][day][p] = `${subjectData.subject} LAB (${subjectData.teacher})`;
+            timetableData[classKey][day][p + 1] = `${subjectData.subject} LAB (${subjectData.teacher})`;
+            teacherSchedule[subjectData.teacher] = teacherSchedule[subjectData.teacher] || [];
+            teacherSchedule[subjectData.teacher].push(`${day}_${p}`, `${day}_${p + 1}`);
+            allocated += 2;
+          }
+        } else {
+          if (isAvailable(classKey, day, p, subjectData.teacher)) {
+            timetableData[classKey][day][p] = `${subjectData.subject} (${subjectData.teacher})`;
+            teacherSchedule[subjectData.teacher] = teacherSchedule[subjectData.teacher] || [];
+            teacherSchedule[subjectData.teacher].push(`${day}_${p}`);
+            allocated++;
+          }
+        }
 
-  for (let i = 0; i < days.length; i++) {
-    html += `<tr><td>${days[i]}</td>`;
-    for (let j = 0; j < periodsPerDay; j++) {
-      const entry = timetable[i][j];
-      html += `<td><strong>${entry.subject}</strong><br /><span style="font-size:0.9em;color:#555">${entry.teacher}</span></td>`;
+        if (allocated >= subjectData.periods) break;
+      }
+      if (allocated >= subjectData.periods) break;
     }
-    html += "</tr>";
-  }
-
-  html += "</table>";
-
-  document.getElementById("timetable-container").innerHTML = html;
+  });
 }
 
-// Utility: Shuffle array in place
-function shuffleArray(array) {
-  for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
+function renderTimetables() {
+  const container = document.getElementById("timetableContainer");
+  container.innerHTML = "";
+
+  for (const classKey in timetableData) {
+    const [dept, year, section] = classKey.split("_");
+    const card = document.createElement("div");
+    card.className = "timetable-card";
+    card.innerHTML = `<h2>${dept} - ${year} - ${section}</h2>`;
+
+    const table = document.createElement("table");
+    const thead = document.createElement("thead");
+    const headerRow = document.createElement("tr");
+    headerRow.innerHTML = `<th>Period</th>` + days.map((d) => `<th>${d}</th>`).join("");
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+    for (let i = 0; i < totalPeriods; i++) {
+      const row = document.createElement("tr");
+      row.innerHTML = `<td>Period ${i + 1}</td>` +
+        days.map((day) => `<td>${timetableData[classKey][day][i]}</td>`).join("");
+      tbody.appendChild(row);
+    }
+    table.appendChild(tbody);
+    card.appendChild(table);
+    container.appendChild(card);
   }
 }
+
+document.getElementById("csvUpload").addEventListener("change", handleFileUpload);
