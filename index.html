@@ -1,108 +1,241 @@
-<!DOCTYPE html><html lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Timetable Generator</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap" rel="stylesheet">
   <style>
-    * {
+    :root {
+      --color-bg-light: #eef2fb;
+      --color-bg-dark: #141729;
+      --color-text-light: #1d2330;
+      --color-text-dark: #f3f6fc;
+      --primary-light: #818cf8;
+      --primary-dark: #60a5fa;
+    }
+    body {
       margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      font-family: 'Inter', sans-serif;
-    }body {
-  background: linear-gradient(to bottom right, #eef2f3, #dbe9f4);
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.container {
-  background: white;
-  padding: 2rem;
-  border-radius: 16px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-  max-width: 400px;
-  width: 90%;
-  text-align: center;
-}
-
-h1 {
-  margin-bottom: 1.5rem;
-  font-size: 1.8rem;
-  color: #333;
-}
-
-label {
-  display: block;
-  margin: 1rem 0 0.5rem;
-  font-weight: 600;
-  text-align: left;
-  color: #444;
-}
-
-select, input[type="file"] {
-  width: 100%;
-  padding: 0.6rem;
-  border-radius: 8px;
-  border: 1px solid #ccc;
-  font-size: 1rem;
-}
-
-.buttons {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 1.5rem;
-}
-
-button {
-  background-color: #007bff;
-  color: white;
-  padding: 0.7rem 1rem;
-  border: none;
-  border-radius: 8px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.3s;
-}
-
-button:hover {
-  background-color: #0056b3;
-}
-
-@media (max-width: 400px) {
-  .buttons {
-    flex-direction: column;
-    gap: 0.8rem;
-  }
-}
-
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(120deg, #dbeafe 0%, #6366f1 100%);
+      color: var(--color-text-light);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 24px 0;
+      transition: background 0.3s, color 0.3s;
+    }
+    body.dark {
+      background: linear-gradient(120deg, #23284e 0%, #14172b 100%);
+      color: var(--color-text-dark);
+    }
+    .dark-toggle {
+      position: fixed;
+      top: 15px;
+      right: 15px;
+      background: linear-gradient(135deg, #6366f1, #60a5fa);
+      border: none;
+      color: white;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      cursor: pointer;
+      font-size: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.6);
+      transition: transform 0.3s, background 0.3s;
+      z-index: 1000;
+      outline: none;
+    }
+    .dark-toggle:hover,
+    .dark-toggle:focus {
+      transform: rotate(90deg) scale(1.1);
+      background: linear-gradient(135deg, #4f46e5, #2563eb);
+    }
+    .container {
+      background: rgba(255,255,255,0.97);
+      border-radius: 25px;
+      padding: 40px 35px;
+      box-shadow: 0 15px 40px rgba(99, 102, 241, 0.15), 0 1.5px 5px rgba(60,60,100,0.07);
+      max-width: 600px;
+      width: 100%;
+      margin: 60px 16px 0 16px;
+      transition: background 0.3s;
+      backdrop-filter: blur(2px);
+    }
+    body.dark .container {
+      background: rgba(42,46,69,0.98);
+      box-shadow: 0 15px 50px rgba(96, 165, 250, 0.3);
+    }
+    h1 {
+      text-align: center;
+      background: linear-gradient(to right, #6366f1, #60a5fa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      color: #6366f1;
+      font-size: 2.5rem;
+      margin-bottom: 30px;
+      font-weight: 700;
+      text-shadow: 1px 1px 1.5px rgba(99, 102, 241, 0.25);
+    }
+    label {
+      display: block;
+      margin-top: 25px;
+      font-weight: 700;
+      color: var(--color-text-light);
+      font-size: 1.1rem;
+      letter-spacing: 0.1em;
+    }
+    body.dark label {
+      color: var(--color-text-dark);
+    }
+    select, input[type="file"] {
+      width: 100%;
+      padding: 14px 16px;
+      margin-top: 8px;
+      border-radius: 15px;
+      border: 1px solid #cbd5e1;
+      background-color: #f9fafb;
+      font-size: 16px;
+      font-weight: 600;
+      transition: all 0.3s;
+      box-shadow: inset 4px 4px 8px #e0e5ec, inset -4px -4px 8px #fff;
+      color: #333;
+    }
+    body.dark select,
+    body.dark input[type="file"] {
+      background-color: #3a3f5c;
+      border: 1px solid #717bbc;
+      color: #e0e0e0;
+      box-shadow: inset 4px 4px 8px #2c3052, inset -4px -4px 8px #3e4375;
+    }
+    select:focus, input[type="file"]:focus {
+      outline: none;
+      border-color: var(--primary-light);
+      box-shadow: 0 0 10px var(--primary-light);
+    }
+    button:not(.dark-toggle) {
+      margin-top: 35px;
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(90deg, var(--primary-light), var(--primary-dark));
+      color: white;
+      border: none;
+      border-radius: 25px;
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.3s, background 0.3s;
+      box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4);
+      outline: none;
+      letter-spacing: 0.08em;
+    }
+    button:not(.dark-toggle):hover,
+    button:not(.dark-toggle):focus {
+      transform: scale(1.05);
+      background: linear-gradient(90deg, #4f46e5, #2563eb);
+      box-shadow: 0 12px 30px rgba(79, 70, 229, 0.25);
+    }
+    #output {
+      margin-top: 40px;
+      background: rgba(255,255,255, .98);
+      border-radius: 20px;
+      padding: 30px;
+      box-shadow: 0 8px 30px rgba(99, 102, 241, 0.12);
+      width: 100%;
+      text-align: center;
+      font-size: 18px;
+      font-weight: 700;
+      color: #333;
+      transition: background 0.3s, color 0.3s;
+      display: none;
+      backdrop-filter: blur(2px);
+    }
+    body.dark #output {
+      background-color: #3a3f5c;
+      color: #e0e0ff;
+    }
+    @media (max-width: 600px) {
+      .container { padding: 28px 8px; }
+      h1 { font-size: 1.5rem; margin-bottom: 16px; }
+      label { font-size: 1rem; margin-top: 16px; }
+      button:not(.dark-toggle) { font-size: 16px; padding: 12px; }
+      #output { font-size: 16px; padding: 20px; margin-top: 20px; }
+      .dark-toggle { width: 40px; height: 40px; font-size: 20px; }
+    }
   </style>
 </head>
 <body>
+  <button class="dark-toggle" id="toggleDarkMode" aria-label="Toggle dark mode">🌙</button>
   <div class="container">
-    <h1>Automatic Timetable Generator</h1>
-    <label for="mode">Select Generation Mode:</label>
-    <select id="mode">
-      <option value="all">Generate for All Classes</option>
-      <option value="single">Generate for Single Class</option>
-    </select><label for="csvFile">Upload CSV File:</label>
-<input type="file" id="csvFile" accept=".csv">
-
-<div class="buttons">
-  <button onclick="generateTimetable()">Generate Timetable</button>
-  <button onclick="downloadExcel()">Download Excel</button>
-</div>
-
-  </div>  <script>
-    function generateTimetable() {
-      alert("Timetable generated (sample action)");
+    <h1>Timetable Generator</h1>
+    <label for="generationMode">Generation Mode</label>
+    <select id="generationMode">
+      <option value="All Classes">All Classes</option>
+      <option value="Single Class">Single Class</option>
+    </select>
+    <div id="departmentField">
+      <label for="department">Department</label>
+      <select id="department">
+        <option value="CSE">CSE</option>
+        <option value="ECE">ECE</option>
+        <option value="EEE">EEE</option>
+        <option value="AIDS">AIDS</option>
+      </select>
+    </div>
+    <div id="yearField">
+      <label for="year">Year</label>
+      <select id="year">
+        <option value="First Year">First Year</option>
+        <option value="Second Year">Second Year</option>
+        <option value="Third Year">Third Year</option>
+        <option value="Final Year">Final Year</option>
+      </select>
+    </div>
+    <div id="sectionField">
+      <label for="section">Section</label>
+      <select id="section">
+        <option value="A">A</option>
+        <option value="B">B</option>
+        <option value="C">C</option>
+      </select>
+    </div>
+    <label for="csvUpload">Upload Subject CSV</label>
+    <input type="file" id="csvUpload" />
+    <button id="generateBtn">Generate Timetable</button>
+    <div id="output">
+      📅 Timetable will appear here after generation.
+    </div>
+  </div>
+  <script>
+    const generationMode = document.getElementById('generationMode');
+    const deptField = document.getElementById('departmentField');
+    const yearField = document.getElementById('yearField');
+    const sectionField = document.getElementById('sectionField');
+    function updateVisibility() {
+      const isSingle = generationMode.value === 'Single Class';
+      deptField.style.display = isSingle ? 'block' : 'none';
+      yearField.style.display = isSingle ? 'block' : 'none';
+      sectionField.style.display = isSingle ? 'block' : 'none';
     }
-
-    function downloadExcel() {
-      alert("Excel file downloaded (sample action)");
-    }
-  </script></body>
+    generationMode.addEventListener('change', updateVisibility);
+    window.addEventListener('DOMContentLoaded', updateVisibility);
+    // Dark mode toggle logic
+    const toggleDark = document.getElementById('toggleDarkMode');
+    toggleDark.addEventListener('click', () => {
+      document.body.classList.toggle('dark');
+    });
+    // Output area handler for Generate button
+    const generateBtn = document.getElementById('generateBtn');
+    const output = document.getElementById('output');
+    generateBtn.addEventListener('click', () => {
+      output.style.display = 'block';
+      output.innerText = '✅ Timetable Generated! (View/Download Later)';
+    });
+  </script>
+</body>
 </html>
