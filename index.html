@@ -4,19 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Timetable Generator</title>
-
-  <!-- Fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap" rel="stylesheet">
-  
-  <!-- External CSS -->
   <link rel="stylesheet" href="style.css" />
-
-  <!-- PapaParse CSV Library -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 </head>
 <body>
   <button class="dark-toggle" id="toggleDarkMode" aria-label="Toggle dark mode">🌙</button>
-
   <div class="container">
     <h1>Timetable Generator</h1>
 
@@ -29,17 +21,19 @@
     <label for="totalPeriodsInput">Total Periods</label>
     <input id="totalPeriodsInput" type="number" min="1" value="10" placeholder="Total periods" />
 
-    <label for="csvUpload">Upload Subject CSV</label>
+    <label for="maxTeacherPeriodsInput">Max Teacher Periods</label>
+    <input id="maxTeacherPeriodsInput" type="number" min="1" value="30" placeholder="Max teacher periods" />
+
+    <label for="csvUpload" class="file-upload-label">Upload Subject CSV</label>
     <input type="file" id="csvUpload" />
 
-    <button id="generateBtn">Generate Timetable</button>
+    <button id="generateBtn" disabled>Generate Timetable</button>
+    <button id="exportBtn" disabled>Export CSV</button>
+    <button id="clearBtn">Clear</button>
 
-    <div id="output">📅 Timetable will appear here after generation.</div>
     <div id="statusMessage"></div>
     <div id="timetableContainer"></div>
   </div>
-
-  <!-- Your JavaScript -->
   <script src="script.js"></script>
   <script>
     document.getElementById('toggleDarkMode').addEventListener('click', () => {
