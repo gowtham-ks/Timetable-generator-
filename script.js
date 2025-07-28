@@ -1,3 +1,5 @@
+// Timetable Generator adapted for your CSV: Department,Year,Section,Subject,Periods,Staff
+// Supports theory and labs, auto-detects lab rows, and enforces max teacher periods
 class TimetableGenerator {
   constructor() {
     this.timetableData = {};
@@ -359,7 +361,7 @@ class TimetableGenerator {
     let totalRequired = 0;
     subjects.forEach(subjectData => {
       let allocated = 0;
-      const maxAttempts = 1000;
+      const maxAttempts = 200; // Lowered for faster fail
       let attempts = 0;
       totalRequired += subjectData.periods;
       while (allocated < subjectData.periods && attempts < maxAttempts) {
@@ -451,13 +453,51 @@ class TimetableGenerator {
   }
 
   renderTimetables(warnings = []) {
-    // ... (same as previous code, omitted for brevity)
-    // Use your existing renderTimetables implementation here.
+    const container = document.getElementById("timetableContainer");
+    if (!container) return;
+    let html = "";
+
+    // Stats
+    html += this.renderStats();
+
+    // Warnings
+    if (warnings.length > 0) {
+      html += `<div style="color: #b71c1c; margin-bottom: 1rem;"><b>Warnings:</b><br>${warnings.join('<br>')}</div>`;
+    }
+
+    // Timetables
+    for (const classKey in this.timetableData) {
+      const [dept, year, section] = classKey.split("_");
+      html += `<div class="timetable-wrapper"><h3>${dept} - Year ${year} - Section ${section}</h3>`;
+      html += `<table class="timetable"><thead><tr><th>Day \\ Period</th>`;
+      for (let i = 0; i < this.settings.totalPeriods; i++) {
+        html += `<th>${i + 1}</th>`;
+      }
+      html += `</tr></thead><tbody>`;
+      this.settings.days.forEach(day => {
+        html += `<tr><th>${day}</th>`;
+        for (let p = 0; p < this.settings.totalPeriods; p++) {
+          const cell = this.timetableData[classKey][day][p];
+          html += `<td class="timetable-cell ${this.getCellClass(cell)}">${cell}</td>`;
+        }
+        html += `</tr>`;
+      });
+      html += `</tbody></table></div>`;
+    }
+
+    container.innerHTML = html;
+    this.adjustMobileLayout();
   }
 
-  renderStats(container) {
-    // ... (same as previous code, omitted for brevity)
-    // Use your existing renderStats implementation here.
+  renderStats() {
+    return `
+      <div class="stats-bar" style="padding: 0.5rem 1rem; background: #eef4fa; margin-bottom: 1rem; border-radius: 6px;">
+        <b>Classes:</b> ${this.stats.totalClasses}
+        &nbsp; | &nbsp; <b>Subjects:</b> ${this.stats.totalSubjects}
+        &nbsp; | &nbsp; <b>Teachers:</b> ${this.stats.totalTeachers}
+        &nbsp; | &nbsp; <b>Allocation Success:</b> ${this.stats.allocationSuccess}%
+      </div>
+    `;
   }
 
   exportTimetables() {
