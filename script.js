@@ -359,7 +359,7 @@ class TimetableGenerator {
     let totalRequired = 0;
     subjects.forEach(subjectData => {
       let allocated = 0;
-      const maxAttempts = 5000;
+      const maxAttempts = 1000;
       let attempts = 0;
       totalRequired += subjectData.periods;
       while (allocated < subjectData.periods && attempts < maxAttempts) {
