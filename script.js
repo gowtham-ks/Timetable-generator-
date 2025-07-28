@@ -258,20 +258,23 @@ class TimetableGenerator {
       if (!periodsPerWeekMap[classKey]) {
         periodsPerWeekMap[classKey] = [];
       }
-      const periods = parseInt(row.PeriodsPerWeek);
       const isLab = row.Type.toString().toLowerCase() === 'lab';
+      const teacherList = isLab
+        ? row.Teacher.split(',').map(t => t.trim()).filter(Boolean)
+        : [row.Teacher.toString().trim()];
+      const labRoom = isLab ? (row.LabRoom ? row.LabRoom.toString().trim() : "Lab1") : null;
       periodsPerWeekMap[classKey].push({
         subject: row.Subject.toString().trim(),
-        teacher: row.Teacher.toString().trim(),
-        periods: periods,
+        teachers: teacherList,
+        periods: parseInt(row.PeriodsPerWeek),
         isLab: isLab,
+        labRoom: labRoom,
         priority: isLab ? 1 : 2
       });
-      const teacherName = row.Teacher.toString().trim();
-      if (!teacherWorkload[teacherName]) {
-        teacherWorkload[teacherName] = 0;
-      }
-      teacherWorkload[teacherName] += periods;
+      teacherList.forEach(tname => {
+        if (!teacherWorkload[tname]) teacherWorkload[tname] = 0;
+        teacherWorkload[tname] += parseInt(row.PeriodsPerWeek);
+      });
     });
     const overloadedTeachers = Object.entries(teacherWorkload)
       .filter(([_, load]) => load > this.settings.maxTeacherPeriods)
@@ -325,22 +328,30 @@ class TimetableGenerator {
     });
   }
 
-  isSlotAvailable(classKey, day, period, teacher, isLab = false) {
+  isSlotAvailable(classKey, day, period, teachers, isLab = false, labRoom = null) {
     if (this.timetableData[classKey][day][period] !== "FREE") return false;
     if (isLab) {
       if (period >= this.settings.totalPeriods - 1) return false;
       if (this.timetableData[classKey][day][period + 1] !== "FREE") return false;
       if (this.settings.breakPeriods.includes(period + 2) ||
           this.settings.lunchPeriod === period + 2) return false;
+      // Check all 3 teachers for both periods
+      const teachersFree = teachers.every(teacher => {
+        const teacherSlots = this.teacherSchedule[teacher] || [];
+        return !teacherSlots.includes(`${day}_${period}`) && !teacherSlots.includes(`${day}_${period + 1}`);
+      });
+      // Check lab room availability for both periods
+      if (labRoom) {
+        const roomSlots = this.roomSchedule[labRoom] || [];
+        if (roomSlots.includes(`${day}_${period}`) || roomSlots.includes(`${day}_${period + 1}`)) return false;
+      }
+      return teachersFree;
+    } else {
+      const teacher = teachers[0];
+      const slot = `${day}_${period}`;
+      const teacherSlots = this.teacherSchedule[teacher] || [];
+      return !teacherSlots.includes(slot);
     }
-    const slot = `${day}_${period}`;
-    const teacherSlots = this.teacherSchedule[teacher] || [];
-    if (teacherSlots.includes(slot)) return false;
-    if (isLab) {
-      const nextSlot = `${day}_${period + 1}`;
-      if (teacherSlots.includes(nextSlot)) return false;
-    }
-    return true;
   }
 
   allocateSubjectsToClass(classKey, subjects) {
@@ -354,27 +365,33 @@ class TimetableGenerator {
       totalRequired += subjectData.periods;
       while (allocated < subjectData.periods && attempts < maxAttempts) {
         attempts++;
-        const dayIndex = this.getWeightedRandomDay(classKey, subjectData.teacher);
+        const dayIndex = this.getWeightedRandomDay(classKey, subjectData.teachers[0]);
         const day = this.settings.days[dayIndex];
         const period = this.getRandomAvailablePeriod(classKey, day, subjectData.isLab);
-        if (period === -1 || !this.isSlotAvailable(classKey, day, period, subjectData.teacher, subjectData.isLab)) {
+        if (period === -1 || !this.isSlotAvailable(
+              classKey, day, period, subjectData.teachers, subjectData.isLab, subjectData.labRoom)) {
           continue;
         }
         if (subjectData.isLab) {
-          const labLabel = `${subjectData.subject} LAB (${subjectData.teacher})`;
+          const labLabel = `${subjectData.subject} LAB (${subjectData.teachers.join(", ")})`;
           this.timetableData[classKey][day][period] = labLabel;
           this.timetableData[classKey][day][period + 1] = labLabel;
-          if (!this.teacherSchedule[subjectData.teacher]) {
-            this.teacherSchedule[subjectData.teacher] = [];
+          // Mark all teachers
+          subjectData.teachers.forEach(t => {
+            if (!this.teacherSchedule[t]) this.teacherSchedule[t] = [];
+            this.teacherSchedule[t].push(`${day}_${period}`, `${day}_${period + 1}`);
+          });
+          // Mark lab room
+          if (subjectData.labRoom) {
+            if (!this.roomSchedule[subjectData.labRoom]) this.roomSchedule[subjectData.labRoom] = [];
+            this.roomSchedule[subjectData.labRoom].push(`${day}_${period}`, `${day}_${period + 1}`);
           }
-          this.teacherSchedule[subjectData.teacher].push(`${day}_${period}`, `${day}_${period + 1}`);
           allocated += 2;
         } else {
-          this.timetableData[classKey][day][period] = `${subjectData.subject} (${subjectData.teacher})`;
-          if (!this.teacherSchedule[subjectData.teacher]) {
-            this.teacherSchedule[subjectData.teacher] = [];
-          }
-          this.teacherSchedule[subjectData.teacher].push(`${day}_${period}`);
+          const teacher = subjectData.teachers[0];
+          this.timetableData[classKey][day][period] = `${subjectData.subject} (${teacher})`;
+          if (!this.teacherSchedule[teacher]) this.teacherSchedule[teacher] = [];
+          this.teacherSchedule[teacher].push(`${day}_${period}`);
           allocated += 1;
         }
       }
@@ -382,7 +399,7 @@ class TimetableGenerator {
       if (allocated < subjectData.periods) {
         const shortage = subjectData.periods - allocated;
         warnings.push(
-          `⚠️ ${classKey}: Could not allocate ${shortage} period(s) for ${subjectData.subject} (${subjectData.teacher})`
+          `⚠️ ${classKey}: Could not allocate ${shortage} period(s) for ${subjectData.subject} (${subjectData.teachers.join(", ")})`
         );
       }
     });
@@ -618,7 +635,6 @@ class TimetableGenerator {
   }
 }
 
-// Instantiate the class after DOM is loaded
 window.addEventListener('DOMContentLoaded', () => {
   window.generator = new TimetableGenerator();
 });
