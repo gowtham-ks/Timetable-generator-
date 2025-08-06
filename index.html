@@ -1,194 +1,1261 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Timetable Generator</title>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 1rem; }
-    table { border-collapse: collapse; margin-bottom: 2rem; width: 100%; }
-    th, td { border: 1px solid #ccc; padding: 0.5rem; text-align: center; }
-    .control-bar { margin-bottom: 1rem; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Timetable Generator</title>
+    
+    <!-- External Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            margin-top: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px 0;
+            border-bottom: 2px solid #e9ecef;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            color: #495057;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header p {
+            color: #6c757d;
+            font-size: 1.1rem;
+        }
+        
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .control-group {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .control-group h3 {
+            color: #495057;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #495057;
+            font-weight: 500;
+        }
+        
+        input[type="file"],
+        input[type="number"],
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #dee2e6;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .file-upload-label {
+            display: block;
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            margin-bottom: 10px;
+        }
+        
+        .file-upload-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        #csvUpload {
+            display: none;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #17a2b8, #138496);
+            color: white;
+        }
+        
+        .btn-secondary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(23, 162, 184, 0.3);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+            color: white;
+        }
+        
+        .btn-danger:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-weight: 500;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+        
+        .status.warn {
+            background: #fff3cd;
+            color: #856404;
+            border-left: 4px solid #ffc107;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-left: 4px solid #17a2b8;
+        }
+        
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            color: #6c757d;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .class-title {
+            background: linear-gradient(135deg, #495057, #343a40);
+            color: white;
+            padding: 15px;
+            margin: 30px 0 10px 0;
+            border-radius: 8px 8px 0 0;
+            font-size: 1.2rem;
+            font-weight: 600;
+            text-align: center;
+        }
+        
+        .timetable {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+            background: white;
+            border-radius: 0 0 8px 8px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .timetable th {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 12px 8px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        
+        .timetable td {
+            padding: 10px 5px;
+            text-align: center;
+            border: 1px solid #dee2e6;
+            font-size: 0.8rem;
+        }
+        
+        .timetable-cell {
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 5px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        
+        .free .timetable-cell {
+            background: #f8f9fa;
+            color: #6c757d;
+            font-style: italic;
+        }
+        
+        .break .timetable-cell {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .lunch .timetable-cell {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .lab .timetable-cell {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .subject .timetable-cell {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #6c757d;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #e9ecef;
+            border-top: 5px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                padding: 15px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .controls {
+                grid-template-columns: 1fr;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+            
+            .btn {
+                width: 100%;
+            }
+            
+            .stats-container {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .timetable {
+                font-size: 0.7rem;
+            }
+            
+            .timetable th,
+            .timetable td {
+                padding: 5px 2px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .stats-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
 <body>
-  <h1>Timetable Generator</h1>
-  <div class="control-bar">
-    <input type="file" id="csvUpload">
-    <button id="generateBtn" disabled>Generate Timetables</button>
-    <button id="viewTeacherBtn" disabled>View Teacher Timetables</button>
-    <button id="exportBtn" disabled>Export CSV</button>
-    <label><input type="checkbox" id="honorPreferences"> Honor Teacher Preferences</label>
-  </div>
-  <div id="timetableContainer"></div>
+    <div class="container">
+        <div class="header">
+            <h1>🎓 Advanced Timetable Generator</h1>
+            <p>Intelligent scheduling with teacher preferences and lab management</p>
+        </div>
+        
+        <div class="controls">
+            <div class="control-group">
+                <h3>📁 Data Upload</h3>
+                <div class="form-group">
+                    <label for="csvUpload" class="file-upload-label">📁 Choose CSV File</label>
+                    <input type="file" id="csvUpload" accept=".csv" />
+                    <small style="color: #6c757d;">
+                        Required columns: Department, Year, Section, Subject, Periods, Staff
+                    </small>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <h3>⚙️ Schedule Settings</h3>
+                <div class="form-group">
+                    <label for="totalPeriodsInput">Total Periods per Day:</label>
+                    <input type="number" id="totalPeriodsInput" value="10" min="1" max="15">
+                </div>
+                <div class="form-group">
+                    <label for="lunchPeriodInput">Lunch Period:</label>
+                    <input type="number" id="lunchPeriodInput" value="6" min="1" max="15">
+                </div>
+                <div class="form-group">
+                    <label for="breakPeriodsInput">Break Periods (comma-separated):</label>
+                    <input type="text" id="breakPeriodsInput" value="3,9" placeholder="e.g., 3,9">
+                </div>
+                <div class="form-group">
+                    <label for="maxTeacherPeriodsInput">Max Teacher Periods/Week:</label>
+                    <input type="number" id="maxTeacherPeriodsInput" value="30" min="1" max="50">
+                </div>
+            </div>
+        </div>
+        
+        <div class="button-group">
+            <button id="generateBtn" class="btn btn-primary" disabled>🚀 Generate Timetables</button>
+            <button id="exportBtn" class="btn btn-secondary" disabled>📄 Export CSV</button>
+            <button id="exportExcelBtn" class="btn btn-secondary" disabled>📊 Export Excel</button>
+            <button id="clearBtn" class="btn btn-danger">🗑️ Clear All</button>
+        </div>
+        
+        <div id="statusMessage"></div>
+        
+        <div id="timetableContainer">
+            <p style="text-align: center; color: #6c757d; font-style: italic; padding: 50px;">
+                Upload a CSV file to get started
+            </p>
+        </div>
+    </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-  <script>
-    class TimetableGenerator {
-      constructor() {
-        this.timetableData = {};
-        this.teacherSchedule = {};
-        this.teacherTimetables = {};
-        this.csvData = null;
-        this.staffPreferences = {};
-        this.settings = {
-          days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
-          totalPeriods: 8
-        };
-        this.initializeEventListeners();
-      }
-
-      initializeEventListeners() {
-        document.getElementById('csvUpload').addEventListener('change', (e) => this.handleFileUpload(e));
-        document.getElementById('generateBtn').addEventListener('click', () => this.generateTimetables());
-        document.getElementById('viewTeacherBtn').addEventListener('click', () => this.renderTeacherTimetables());
-        document.getElementById('exportBtn').addEventListener('click', () => this.exportCSV());
-      }
-
-      handleFileUpload(event) {
-        const file = event.target.files[0];
-        if (!file) return alert("Please upload a CSV file.");
-
-        Papa.parse(file, {
-          header: true,
-          skipEmptyLines: true,
-          complete: (result) => {
-            this.csvData = result.data;
-            this.extractPreferences();
-            document.getElementById('generateBtn').disabled = false;
-          }
-        });
-      }
-
-      extractPreferences() {
-        this.staffPreferences = {};
-        this.csvData.forEach(row => {
-          const staff = row.Staff.trim();
-          if (!this.staffPreferences[staff]) {
-            this.staffPreferences[staff] = { preferredSlots: [] };
-          }
-          if (row.PreferredDay && row.PreferredPeriod) {
-            const day = row.PreferredDay.trim();
-            const period = parseInt(row.PreferredPeriod) - 1;
-            if (this.settings.days.includes(day) && period >= 0) {
-              this.staffPreferences[staff].preferredSlots.push(`${day}_${period}`);
+    <script>
+        // Your existing TimetableGenerator class code goes here
+        class TimetableGenerator {
+            constructor() {
+                this.timetableData = {};
+                this.teacherSchedule = {};
+                this.roomSchedule = {};
+                this.staffPreferences = {};
+                this.csvData = null;
+                this.settings = {
+                    days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+                    lunchPeriod: 6,
+                    breakPeriods: [3, 9],
+                    totalPeriods: 10,
+                    maxTeacherPeriods: 30,
+                    randomizeAllocation: true
+                };
+                this.stats = {
+                    totalClasses: 0,
+                    totalSubjects: 0,
+                    totalTeachers: 0,
+                    allocationSuccess: 0,
+                    preferencesHonored: 0
+                };
+                this.initializeEventListeners();
+                this.addMobileEventListeners();
             }
-          }
-        });
-      }
 
-      generateTimetables() {
-        this.timetableData = {};
-        this.teacherSchedule = {};
-        this.teacherTimetables = {};
-        const honorPreferences = document.getElementById('honorPreferences').checked;
-
-        const classMap = {};
-        this.csvData.forEach(row => {
-          const key = `${row.Department}_${row.Year}_${row.Section}`;
-          if (!this.timetableData[key]) {
-            this.timetableData[key] = this.createEmptyTimetable();
-          }
-          if (!classMap[key]) classMap[key] = [];
-
-          classMap[key].push({
-            subject: row.Subject,
-            teacher: row.Staff.trim(),
-            periods: parseInt(row.Periods)
-          });
-        });
-
-        for (const classKey in classMap) {
-          classMap[classKey].forEach(item => {
-            let allocated = 0;
-            while (allocated < item.periods) {
-              let bestSlot = null;
-              let bestScore = -Infinity;
-              this.settings.days.forEach(day => {
-                for (let p = 0; p < this.settings.totalPeriods; p++) {
-                  if (this.timetableData[classKey][day][p] !== "FREE") continue;
-                  if (!this.isTeacherFree(item.teacher, day, p)) continue;
-
-                  let score = Math.random();
-                  if (honorPreferences && this.staffPreferences[item.teacher]?.preferredSlots.includes(`${day}_${p}`)) {
-                    score += 10;
-                  }
-
-                  if (score > bestScore) {
-                    bestScore = score;
-                    bestSlot = { day, period: p };
-                  }
+            initializeEventListeners() {
+                document.getElementById('csvUpload').addEventListener('change', (e) => this.handleFileUpload(e));
+                const generateBtn = document.getElementById('generateBtn');
+                if (generateBtn) {
+                    generateBtn.addEventListener('click', () => this.generateTimetables());
                 }
-              });
-
-              if (bestSlot) {
-                this.timetableData[classKey][bestSlot.day][bestSlot.period] = `${item.subject} (${item.teacher})`;
-                if (!this.teacherSchedule[item.teacher]) this.teacherSchedule[item.teacher] = [];
-                this.teacherSchedule[item.teacher].push(`${bestSlot.day}_${bestSlot.period}`);
-                if (!this.teacherTimetables[item.teacher]) {
-                  this.teacherTimetables[item.teacher] = this.createEmptyTimetable();
+                const exportBtn = document.getElementById('exportBtn');
+                if (exportBtn) {
+                    exportBtn.addEventListener('click', () => this.exportTimetables('csv'));
                 }
-                this.teacherTimetables[item.teacher][bestSlot.day][bestSlot.period] = `${item.subject} (${classKey})`;
-                allocated++;
-              } else break;
+                const exportExcelBtn = document.getElementById('exportExcelBtn');
+                if (exportExcelBtn) {
+                    exportExcelBtn.addEventListener('click', () => this.exportTimetables('excel'));
+                }
+                const clearBtn = document.getElementById('clearBtn');
+                if (clearBtn) {
+                    clearBtn.addEventListener('click', () => this.clearAll());
+                }
+                ['totalPeriodsInput', 'lunchPeriodInput', 'breakPeriodsInput', 'maxTeacherPeriodsInput'].forEach(id => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        element.addEventListener('change', () => this.updateSettings());
+                    }
+                });
             }
-          });
+
+            addMobileEventListeners() {
+                document.addEventListener('touchstart', (e) => {
+                    if (e.target.classList.contains('timetable-cell')) {
+                        e.target.style.backgroundColor = '#e3f2fd';
+                    }
+                });
+                document.addEventListener('touchend', (e) => {
+                    if (e.target.classList.contains('timetable-cell')) {
+                        setTimeout(() => {
+                            e.target.style.backgroundColor = '';
+                        }, 150);
+                    }
+                });
+                window.addEventListener('orientationchange', () => {
+                    setTimeout(() => this.adjustMobileLayout(), 100);
+                });
+                let resizeTimeout;
+                window.addEventListener('resize', () => {
+                    clearTimeout(resizeTimeout);
+                    resizeTimeout = setTimeout(() => this.adjustMobileLayout(), 250);
+                });
+            }
+
+            adjustMobileLayout() {
+                const isMobile = window.innerWidth <= 768;
+                const tables = document.querySelectorAll('.timetable');
+                tables.forEach(table => {
+                    if (isMobile) {
+                        table.style.fontSize = '0.7rem';
+                        const cells = table.querySelectorAll('td, th');
+                        cells.forEach(cell => {
+                            cell.style.padding = '0.3rem 0.1rem';
+                        });
+                    } else {
+                        table.style.fontSize = '';
+                        const cells = table.querySelectorAll('td, th');
+                        cells.forEach(cell => {
+                            cell.style.padding = '';
+                        });
+                    }
+                });
+            }
+
+            showStatus(message, type = "info") {
+                const status = document.getElementById("statusMessage");
+                if (status) {
+                    const statusClass = type === 'success' ? 'success' :
+                                       type === 'error' ? 'error' :
+                                       type === 'warn' ? 'warn' : 'info';
+                    status.innerHTML = `<div class="status ${statusClass}">${message}</div>`;
+                    if (type === 'success') {
+                        setTimeout(() => {
+                            status.innerHTML = '';
+                        }, 3000);
+                    }
+                    if (window.innerWidth <= 768) {
+                        status.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                }
+            }
+
+            showLoading(show = true) {
+                const container = document.getElementById("timetableContainer");
+                if (show) {
+                    container.innerHTML = `
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <p>Generating optimized timetables with preferences...</p>
+                        </div>
+                    `;
+                }
+            }
+
+            updateSettings() {
+                const breaksInput = document.getElementById("breakPeriodsInput");
+                const lunchInput = document.getElementById("lunchPeriodInput");
+                const totalPeriodsInput = document.getElementById("totalPeriodsInput");
+                const maxTeacherPeriodsInput = document.getElementById("maxTeacherPeriodsInput");
+                
+                if (breaksInput) {
+                    this.settings.breakPeriods = breaksInput.value
+                        .split(",")
+                        .map(v => parseInt(v.trim()))
+                        .filter(v => !isNaN(v) && v > 0);
+                }
+                if (lunchInput) {
+                    this.settings.lunchPeriod = parseInt(lunchInput.value) || 6;
+                }
+                if (totalPeriodsInput) {
+                    this.settings.totalPeriods = parseInt(totalPeriodsInput.value) || 10;
+                }
+                if (maxTeacherPeriodsInput) {
+                    this.settings.maxTeacherPeriods = parseInt(maxTeacherPeriodsInput.value) || 30;
+                }
+                
+                if (this.settings.lunchPeriod > this.settings.totalPeriods) {
+                    this.showStatus("Lunch period cannot exceed total periods!", "error");
+                    if (lunchInput) {
+                        lunchInput.value = Math.min(this.settings.lunchPeriod, this.settings.totalPeriods);
+                        this.settings.lunchPeriod = parseInt(lunchInput.value);
+                    }
+                }
+            }
+
+            handleFileUpload(event) {
+                const file = event.target.files[0];
+                if (!file) {
+                    this.showStatus("No file selected.", "error");
+                    return;
+                }
+                if (!file.name.toLowerCase().endsWith('.csv')) {
+                    this.showStatus("Please select a CSV file.", "error");
+                    return;
+                }
+                
+                this.showStatus("Reading CSV file...", "info");
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const text = e.target.result;
+                        const parsed = Papa.parse(text, {
+                            header: true,
+                            skipEmptyLines: true,
+                            dynamicTyping: true,
+                            delimiter: ",",
+                            delimitersToGuess: [',', '\t', '|', ';']
+                        });
+                        
+                        if (parsed.errors.length > 0) {
+                            this.showStatus(`CSV parse error: ${parsed.errors[0].message}`, "error");
+                            return;
+                        }
+                        
+                        if (parsed.data.length === 0) {
+                            this.showStatus("CSV file is empty or has no valid data.", "error");
+                            return;
+                        }
+                        
+                        const requiredColumns = ['Department', 'Year', 'Section', 'Subject', 'Periods', 'Staff'];
+                        const headers = Object.keys(parsed.data[0]);
+                        const missingColumns = requiredColumns.filter(col => !headers.includes(col));
+                        
+                        if (missingColumns.length > 0) {
+                            this.showStatus(`Missing required columns: ${missingColumns.join(', ')}`, "error");
+                            return;
+                        }
+                        
+                        this.processStaffPreferences(parsed.data);
+                        
+                        this.csvData = parsed.data;
+                        const generateBtn = document.getElementById('generateBtn');
+                        if (generateBtn) generateBtn.disabled = false;
+                        
+                        let statusMsg = `CSV loaded successfully! ${parsed.data.length} entries found.`;
+                        if (Object.keys(this.staffPreferences).length > 0) {
+                            statusMsg += ` Found ${Object.keys(this.staffPreferences).length} staff preferences.`;
+                        }
+                        
+                        this.showStatus(statusMsg, "success");
+                        const label = document.querySelector('.file-upload-label');
+                        if (label) {
+                            label.textContent = `✓ ${file.name}`;
+                        }
+                    } catch (err) {
+                        this.showStatus(`Error reading file: ${err.message}`, "error");
+                    }
+                };
+                reader.readAsText(file);
+            }
+
+            processStaffPreferences(data) {
+                this.staffPreferences = {};
+                
+                data.forEach((row, index) => {
+                    const staffNames = row.Staff.toString().split(',').map(s => s.trim()).filter(Boolean);
+                    
+                    staffNames.forEach(staffName => {
+                        if (!this.staffPreferences[staffName]) {
+                            this.staffPreferences[staffName] = {
+                                preferredSlots: [],
+                                unavailableSlots: []
+                            };
+                        }
+                        
+                        if (row.PreferredDay && row.PreferredPeriod) {
+                            const prefDay = row.PreferredDay.toString().trim();
+                            const prefPeriod = parseInt(row.PreferredPeriod);
+                            
+                            if (this.settings.days.includes(prefDay) && prefPeriod > 0 && prefPeriod <= this.settings.totalPeriods) {
+                                this.staffPreferences[staffName].preferredSlots.push(`${prefDay}_${prefPeriod - 1}`);
+                            }
+                        }
+                        
+                        if (row.UnavailableDay && row.UnavailablePeriod) {
+                            const unavailDay = row.UnavailableDay.toString().trim();
+                            const unavailPeriod = parseInt(row.UnavailablePeriod);
+                            
+                            if (this.settings.days.includes(unavailDay) && unavailPeriod > 0 && unavailPeriod <= this.settings.totalPeriods) {
+                                this.staffPreferences[staffName].unavailableSlots.push(`${unavailDay}_${unavailPeriod - 1}`);
+                            }
+                        }
+                        
+                        if (row.PreferredSlots) {
+                            const slots = row.PreferredSlots.toString().split(',');
+                            slots.forEach(slot => {
+                                const [day, period] = slot.trim().split('-');
+                                if (day && period && this.settings.days.includes(day)) {
+                                    const periodNum = parseInt(period) - 1;
+                                    if (periodNum >= 0 && periodNum < this.settings.totalPeriods) {
+                                        this.staffPreferences[staffName].preferredSlots.push(`${day}_${periodNum}`);
+                                    }
+                                }
+                            });
+                        }
+                        
+                        if (row.UnavailableSlots) {
+                            const slots = row.UnavailableSlots.toString().split(',');
+                            slots.forEach(slot => {
+                                const [day, period] = slot.trim().split('-');
+                                if (day && period && this.settings.days.includes(day)) {
+                                    const periodNum = parseInt(period) - 1;
+                                    if (periodNum >= 0 && periodNum < this.settings.totalPeriods) {
+                                        this.staffPreferences[staffName].unavailableSlots.push(`${day}_${periodNum}`);
+                                    }
+                                }
+                            });
+                        }
+                    });
+                });
+            }
+
+            validateData(data) {
+                const errors = [];
+                const warnings = [];
+                
+                data.forEach((row, index) => {
+                    const rowNum = index + 2;
+                    
+                    if (!row.Department?.toString().trim()) errors.push(`Row ${rowNum}: Department is required`);
+                    if (!row.Year) errors.push(`Row ${rowNum}: Year is required`);
+                    if (!row.Section?.toString().trim()) errors.push(`Row ${rowNum}: Section is required`);
+                    if (!row.Subject?.toString().trim()) errors.push(`Row ${rowNum}: Subject is required`);
+                    if (!row.Staff?.toString().trim()) errors.push(`Row ${rowNum}: Staff is required`);
+                    
+                    const periods = parseInt(row.Periods);
+                    if (isNaN(periods) || periods <= 0) {
+                        errors.push(`Row ${rowNum}: Periods must be a positive number`);
+                    } else if (periods > this.settings.totalPeriods * this.settings.days.length) {
+                        warnings.push(`Row ${rowNum}: ${periods} periods/week may be too many to schedule`);
+                    }
+                    
+                    const isLab = /lab/i.test(row.Subject);
+                    if (isLab) {
+                        const staffList = row.Staff.split(',').map(s => s.trim()).filter(Boolean);
+                        if (staffList.length !== 3) {
+                            errors.push(`Row ${rowNum}: Lab "${row.Subject}" must have exactly 3 staff members, found ${staffList.length}`);
+                        }
+                    }
+                });
+                
+                return { errors, warnings };
+            }
+
+            generateTimetables() {
+                if (!this.csvData) {
+                    this.showStatus("Please upload a CSV file first.", "error");
+                    return;
+                }
+                
+                this.showLoading(true);
+                this.updateSettings();
+                
+                const validation = this.validateData(this.csvData);
+                if (validation.errors.length > 0) {
+                    this.showStatus(`Data validation failed:<br>${validation.errors.join('<br>')}`, "error");
+                    document.getElementById("timetableContainer").innerHTML = '';
+                    return;
+                }
+                
+                setTimeout(() => {
+                    try {
+                        this.processData();
+                    } catch (error) {
+                        this.showStatus(`Generation failed: ${error.message}`, "error");
+                        document.getElementById("timetableContainer").innerHTML = '';
+                    }
+                }, 100);
+            }
+
+            processData() {
+                this.timetableData = {};
+                this.teacherSchedule = {};
+                this.roomSchedule = {};
+                const periodsPerWeekMap = {};
+                const teacherWorkload = {};
+                let totalPreferences = 0;
+                let honoredPreferences = 0;
+                
+                this.csvData.forEach(row => {
+                    const classKey = `${row.Department}_${row.Year}_${row.Section}`;
+                    if (!this.timetableData[classKey]) {
+                        this.timetableData[classKey] = this.createEmptyTimetable();
+                    }
+                    if (!periodsPerWeekMap[classKey]) {
+                        periodsPerWeekMap[classKey] = [];
+                    }
+                    
+                    const isLab = /lab/i.test(row.Subject);
+                    const teacherList = isLab
+                        ? row.Staff.split(',').map(t => t.trim()).filter(Boolean)
+                        : [row.Staff.toString().trim()];
+                    
+                    if (isLab && teacherList.length !== 3) {
+                        throw new Error(`Lab "${row.Subject}" must have exactly 3 staff members, found ${teacherList.length}: ${teacherList.join(', ')}`);
+                    }
+                    
+                    const labRoom = isLab ? (row.LabRoom ? row.LabRoom.toString().trim() : "Lab1") : null;
+                    
+                    periodsPerWeekMap[classKey].push({
+                        subject: row.Subject.toString().trim(),
+                        teachers: teacherList,
+                        periods: parseInt(row.Periods),
+                        isLab: isLab,
+                        labRoom: labRoom,
+                        priority: isLab ? 1 : 2
+                    });
+                    
+                    teacherList.forEach(tname => {
+                        if (!teacherWorkload[tname]) teacherWorkload[tname] = 0;
+                        teacherWorkload[tname] += parseInt(row.Periods);
+                    });
+                });
+                
+                const overloadedTeachers = Object.entries(teacherWorkload)
+                    .filter(([_, load]) => load > this.settings.maxTeacherPeriods)
+                    .map(([teacher, load]) => `${teacher} (${load} periods)`);
+                
+                let allocationWarnings = [];
+                if (overloadedTeachers.length > 0) {
+                    allocationWarnings.push(
+                        `⚠️ Teachers with excessive workload: ${overloadedTeachers.join(', ')}`
+                    );
+                }
+                
+                let totalAllocated = 0;
+                let totalRequired = 0;
+                
+                for (const classKey in periodsPerWeekMap) {
+                    const subjects = this.prioritizeSubjects(periodsPerWeekMap[classKey]);
+                    const result = this.allocateSubjectsToClass(classKey, subjects);
+                    allocationWarnings.push(...result.warnings);
+                    totalAllocated += result.allocated;
+                    totalRequired += result.required;
+                    totalPreferences += result.totalPreferences || 0;
+                    honoredPreferences += result.honoredPreferences || 0;
+                }
+                
+                this.stats = {
+                    totalClasses: Object.keys(this.timetableData).length,
+                    totalSubjects: this.csvData.length,
+                    totalTeachers: Object.keys(teacherWorkload).length,
+                    allocationSuccess: totalRequired > 0 ? Math.round((totalAllocated / totalRequired) * 100) : 0,
+                    preferencesHonored: totalPreferences > 0 ? Math.round((honoredPreferences / totalPreferences) * 100) : 0
+                };
+                
+                this.renderTimetables(allocationWarnings);
+                const exportBtn = document.getElementById('exportBtn');
+                const exportExcelBtn = document.getElementById('exportExcelBtn');
+                if (exportBtn) exportBtn.disabled = false;
+                if (exportExcelBtn) exportExcelBtn.disabled = false;
+            }
+
+            createEmptyTimetable() {
+                const table = {};
+                this.settings.days.forEach(day => {
+                    table[day] = Array(this.settings.totalPeriods).fill("FREE");
+                    this.settings.breakPeriods.forEach(bp => {
+                        if (bp > 0 && bp <= this.settings.totalPeriods) {
+                            table[day][bp - 1] = "Break";
+                        }
+                    });
+                    if (this.settings.lunchPeriod > 0 && this.settings.lunchPeriod <= this.settings.totalPeriods) {
+                        table[day][this.settings.lunchPeriod - 1] = "Lunch";
+                    }
+                });
+                return table;
+            }
+
+            prioritizeSubjects(subjects) {
+                return subjects.sort((a, b) => {
+                    if (a.priority !== b.priority) return a.priority - b.priority;
+                    return b.periods - a.periods;
+                });
+            }
+
+            isSlotAvailable(classKey, day, period, teachers, isLab = false, labRoom = null) {
+                if (this.timetableData[classKey][day][period] !== "FREE") return false;
+                
+                if (isLab) {
+                    if (period >= this.settings.totalPeriods - 1) return false;
+                    if (this.timetableData[classKey][day][period + 1] !== "FREE") return false;
+                    if (this.settings.breakPeriods.includes(period + 2) ||
+                        this.settings.lunchPeriod === period + 2) return false;
+                    
+                    const teachersFree = teachers.every(teacher => {
+                        const teacherSlots = this.teacherSchedule[teacher] || [];
+                        const slot1 = `${day}_${period}`;
+                        const slot2 = `${day}_${period + 1}`;
+                        
+                        const isAvailable = !teacherSlots.includes(slot1) && !teacherSlots.includes(slot2);
+                        
+                        const preferences = this.staffPreferences[teacher];
+                        if (preferences) {
+                            if (preferences.unavailableSlots.includes(slot1) || 
+                                preferences.unavailableSlots.includes(slot2)) {
+                                return false;
+                            }
+                        }
+                        
+                        return isAvailable;
+                    });
+                    
+                    if (labRoom) {
+                        const roomSlots = this.roomSchedule[labRoom] || [];
+                        const roomAvailable = !roomSlots.includes(`${day}_${period}`) && 
+                                           !roomSlots.includes(`${day}_${period + 1}`);
+                        return teachersFree && roomAvailable;
+                    }
+                    
+                    return teachersFree;
+                } else {
+                    const teacherFree = teachers.every(teacher => {
+                        const teacherSlots = this.teacherSchedule[teacher] || [];
+                        const slot = `${day}_${period}`;
+                        
+                        const isAvailable = !teacherSlots.includes(slot);
+                        
+                        const preferences = this.staffPreferences[teacher];
+                        if (preferences) {
+                            if (preferences.unavailableSlots.includes(slot)) {
+                                return false;
+                            }
+                        }
+                        
+                        return isAvailable;
+                    });
+                    
+                    return teacherFree;
+                }
+            }
+
+            getSlotPreferenceScore(day, period, teachers) {
+                let score = 0;
+                const slot = `${day}_${period}`;
+                
+                teachers.forEach(teacher => {
+                    const preferences = this.staffPreferences[teacher];
+                    if (preferences) {
+                        if (preferences.preferredSlots.includes(slot)) {
+                            score += 10;
+                        }
+                        if (preferences.unavailableSlots.includes(slot)) {
+                            score -= 100;
+                        }
+                    }
+                });
+                
+                return score;
+            }
+
+            allocateSubjectsToClass(classKey, subjects) {
+                let totalAllocated = 0;
+                let totalRequired = 0;
+                let totalPreferences = 0;
+                let honoredPreferences = 0;
+                const warnings = [];
+
+                subjects.forEach(subjectData => {
+                    totalRequired += subjectData.periods;
+                    totalPreferences += subjectData.teachers.length;
+                    
+                    let allocated = 0;
+                    const maxAttempts = 100;
+                    let attempts = 0;
+
+                    while (allocated < subjectData.periods && attempts < maxAttempts) {
+                        let bestSlot = null;
+                        let bestScore = -Infinity;
+
+                        for (const day of this.settings.days) {
+                            for (let period = 0; period < this.settings.totalPeriods; period++) {
+                                if (this.isSlotAvailable(classKey, day, period, subjectData.teachers, 
+                                                         subjectData.isLab, subjectData.labRoom)) {
+                                    let score = Math.random();
+                                    
+                                    if (!subjectData.isLab) {
+                                        score += this.getSlotPreferenceScore(day, period, subjectData.teachers);
+                                    }
+                                    
+                                    if (score > bestScore) {
+                                        bestScore = score;
+                                        bestSlot = { day, period };
+                                    }
+                                }
+                            }
+                        }
+
+                        if (bestSlot) {
+                            this.allocateSlot(classKey, bestSlot.day, bestSlot.period, 
+                                            subjectData.subject, subjectData.teachers, 
+                                            subjectData.isLab, subjectData.labRoom);
+                            
+                            if (bestScore > 0) {
+                                honoredPreferences++;
+                            }
+                            
+                            allocated += subjectData.isLab ? 2 : 1;
+                        } else {
+                            break;
+                        }
+                        attempts++;
+                    }
+
+                    totalAllocated += allocated;
+                    
+                    if (allocated < subjectData.periods) {
+                        const shortage = subjectData.periods - allocated;
+                        warnings.push(`⚠️ ${classKey}: Could only allocate ${allocated}/${subjectData.periods} periods for ${subjectData.subject} (${subjectData.teachers.join(', ')})`);
+                    }
+                });
+
+                return { 
+                    allocated: totalAllocated, 
+                    required: totalRequired, 
+                    warnings,
+                    totalPreferences,
+                    honoredPreferences
+                };
+            }
+
+            allocateSlot(classKey, day, period, subject, teachers, isLab = false, labRoom = null) {
+                if (isLab) {
+                    this.timetableData[classKey][day][period] = `${subject} (Lab)`;
+                    this.timetableData[classKey][day][period + 1] = `${subject} (Lab)`;
+                    
+                    teachers.forEach(teacher => {
+                        if (!this.teacherSchedule[teacher]) this.teacherSchedule[teacher] = [];
+                        this.teacherSchedule[teacher].push(`${day}_${period}`);
+                        this.teacherSchedule[teacher].push(`${day}_${period + 1}`);
+                    });
+                    
+                    if (labRoom) {
+                        if (!this.roomSchedule[labRoom]) this.roomSchedule[labRoom] = [];
+                        this.roomSchedule[labRoom].push(`${day}_${period}`);
+                        this.roomSchedule[labRoom].push(`${day}_${period + 1}`);
+                    }
+                } else {
+                    this.timetableData[classKey][day][period] = subject;
+                    
+                    teachers.forEach(teacher => {
+                        if (!this.teacherSchedule[teacher]) this.teacherSchedule[teacher] = [];
+                        this.teacherSchedule[teacher].push(`${day}_${period}`);
+                    });
+                }
+            }
+
+            renderTimetables(warnings) {
+                const container = document.getElementById("timetableContainer");
+                
+                let html = '';
+                
+                // Add statistics
+                html += `
+                    <div class="stats-container">
+                        <div class="stat-card">
+                            <div class="stat-number">${this.stats.totalClasses}</div>
+                            <div class="stat-label">Classes Generated</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">${this.stats.totalTeachers}</div>
+                            <div class="stat-label">Teachers Involved</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">${this.stats.allocationSuccess}%</div>
+                            <div class="stat-label">Allocation Success</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">${this.stats.preferencesHonored}%</div>
+                            <div class="stat-label">Preferences Honored</div>
+                        </div>
+                    </div>
+                `;
+
+                if (warnings.length > 0) {
+                    html += `<div class="status warn">
+                        <strong>Allocation Warnings:</strong><br>
+                        ${warnings.join('<br>')}
+                    </div>`;
+                }
+
+                for (const classKey in this.timetableData) {
+                    const [dept, year, section] = classKey.split('_');
+                    html += `
+                        <div class="class-title">
+                            ${dept} - Year ${year} - Section ${section}
+                        </div>
+                        <table class="timetable">
+                            <thead>
+                                <tr>
+                                    <th>Period</th>
+                                    ${this.settings.days.map(day => `<th>${day}</th>`).join('')}
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+
+                    for (let period = 0; period < this.settings.totalPeriods; period++) {
+                        html += `<tr><td><strong>P${period + 1}</strong></td>`;
+                        this.settings.days.forEach(day => {
+                            const cellContent = this.timetableData[classKey][day][period];
+                            const cellClass = this.getCellClass(cellContent);
+                            html += `<td class="${cellClass}">
+                                <div class="timetable-cell">${cellContent}</div>
+                            </td>`;
+                        });
+                        html += `</tr>`;
+                    }
+
+                    html += `
+                            </tbody>
+                        </table>
+                    `;
+                }
+
+                container.innerHTML = html;
+                this.adjustMobileLayout();
+                
+                let successMsg = `Timetables generated successfully! `;
+                successMsg += `${this.stats.allocationSuccess}% periods allocated. `;
+                if (this.stats.preferencesHonored > 0) {
+                    successMsg += `${this.stats.preferencesHonored}% preferences honored.`;
+                }
+                
+                this.showStatus(successMsg, "success");
+            }
+
+            getCellClass(content) {
+                const lower = content.toLowerCase();
+                if (lower === 'free') return 'free';
+                if (lower === 'break') return 'break';
+                if (lower === 'lunch') return 'lunch';
+                if (lower.includes('lab')) return 'lab';
+                return 'subject';
+            }
+
+            exportTimetables(format = 'csv') {
+                if (!this.timetableData || Object.keys(this.timetableData).length === 0) {
+                    this.showStatus("No timetables to export!", "error");
+                    return;
+                }
+
+                const exportData = [];
+                
+                for (const classKey in this.timetableData) {
+                    const [dept, year, section] = classKey.split('_');
+                    
+                    for (let period = 0; period < this.settings.totalPeriods; period++) {
+                        const row = {
+                            Department: dept,
+                            Year: year,
+                            Section: section,
+                            Period: period + 1
+                        };
+                        
+                        this.settings.days.forEach(day => {
+                            row[day] = this.timetableData[classKey][day][period];
+                        });
+                        
+                        exportData.push(row);
+                    }
+                }
+
+                if (format === 'excel') {
+                    this.exportToExcel(exportData);
+                } else {
+                    this.exportToCSV(exportData);
+                }
+            }
+
+            exportToCSV(data) {
+                const csv = Papa.unparse(data);
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `timetables_${new Date().toISOString().split('T')[0]}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                this.showStatus("CSV exported successfully!", "success");
+            }
+
+            exportToExcel(data) {
+                const wb = XLSX.utils.book_new();
+                const ws = XLSX.utils.json_to_sheet(data);
+                XLSX.utils.book_append_sheet(wb, ws, "Timetables");
+                XLSX.writeFile(wb, `timetables_${new Date().toISOString().split('T')[0]}.xlsx`);
+                
+                this.showStatus("Excel file exported successfully!", "success");
+            }
+
+            clearAll() {
+                if (confirm("Are you sure you want to clear all data? This action cannot be undone.")) {
+                    this.timetableData = {};
+                    this.teacherSchedule = {};
+                    this.roomSchedule = {};
+                    this.staffPreferences = {};
+                    this.csvData = null;
+                    
+                    // Reset UI elements
+                    document.getElementById('csvUpload').value = '';
+                    const label = document.querySelector('.file-upload-label');
+                    if (label) {
+                        label.textContent = '📁 Choose CSV File';
+                    }
+                    
+                    // Disable buttons
+                    const generateBtn = document.getElementById('generateBtn');
+                    const exportBtn = document.getElementById('exportBtn');
+                    const exportExcelBtn = document.getElementById('exportExcelBtn');
+                    if (generateBtn) generateBtn.disabled = true;
+                    if (exportBtn) exportBtn.disabled = true;
+                    if (exportExcelBtn) exportExcelBtn.disabled = true;
+                    
+                    // Clear containers
+                    const container = document.getElementById("timetableContainer");
+                    const status = document.getElementById("statusMessage");
+                    if (container) {
+                        container.innerHTML = `
+                            <p style="text-align: center; color: #6c757d; font-style: italic;">
+                                Upload a CSV file to get started
+                            </p>
+                        `;
+                    }
+                    if (status) {
+                        status.innerHTML = '';
+                    }
+                    
+                    // Reset stats
+                    this.stats = {
+                        totalClasses: 0,
+                        totalSubjects: 0,
+                        totalTeachers: 0,
+                        allocationSuccess: 0,
+                        preferencesHonored: 0
+                    };
+                    
+                    this.showStatus("All data cleared successfully!", "success");
+                }
+            }
         }
 
-        this.renderTimetables();
-        document.getElementById('viewTeacherBtn').disabled = false;
-        document.getElementById('exportBtn').disabled = false;
-      }
-
-      isTeacherFree(teacher, day, period) {
-        return !(this.teacherSchedule[teacher]?.includes(`${day}_${period}`));
-      }
-
-      createEmptyTimetable() {
-        const table = {};
-        this.settings.days.forEach(day => {
-          table[day] = Array(this.settings.totalPeriods).fill("FREE");
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            window.timetableGenerator = new TimetableGenerator();
         });
-        return table;
-      }
-
-      renderTimetables() {
-        const container = document.getElementById("timetableContainer");
-        let html = "<h2>Class Timetables</h2>";
-        for (const key in this.timetableData) {
-          html += `<h3>${key}</h3><table><tr><th>Day</th>${Array.from({length: this.settings.totalPeriods}, (_, i) => `<th>P${i+1}</th>`).join('')}</tr>`;
-          this.settings.days.forEach(day => {
-            html += `<tr><td>${day}</td>`;
-            html += this.timetableData[key][day].map(cell => `<td>${cell}</td>`).join('');
-            html += '</tr>';
-          });
-          html += '</table>';
-        }
-        container.innerHTML = html;
-      }
-
-      renderTeacherTimetables() {
-        const container = document.getElementById("timetableContainer");
-        let html = "<h2>Teacher Timetables</h2>";
-        for (const key in this.teacherTimetables) {
-          html += `<h3>${key}</h3><table><tr><th>Day</th>${Array.from({length: this.settings.totalPeriods}, (_, i) => `<th>P${i+1}</th>`).join('')}</tr>`;
-          this.settings.days.forEach(day => {
-            html += `<tr><td>${day}</td>`;
-            html += this.teacherTimetables[key][day].map(cell => `<td>${cell}</td>`).join('');
-            html += '</tr>';
-          });
-          html += '</table>';
-        }
-        container.innerHTML = html;
-      }
-
-      exportCSV() {
-        alert("Export CSV functionality not implemented in this snippet.");
-      }
-    }
-
-    window.addEventListener('DOMContentLoaded', () => {
-      window.generator = new TimetableGenerator();
-    });
-  </script>
+    </script>
 </body>
 </html>
+                        
