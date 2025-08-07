@@ -1272,34 +1272,38 @@
                     });
                     
                     let allocated = 0;
-                    const maxAttempts = 150; // Increased attempts for better allocation
+                    const maxAttempts = 200;
                     let attempts = 0;
                     const subjectKey = subjectData.subjectKey;
 
-                    // Continue allocation while we have remaining periods
-                    while (this.hasRemainingPeriods(subjectKey) && attempts < maxAttempts) {
+                    // For lab subjects, we need to allocate in chunks of 2 periods
+                    const allocationUnit = subjectData.isLab ? 2 : 1;
+                    const totalSessions = Math.floor(subjectData.periods / allocationUnit);
+
+                    // Allocate the required number of sessions
+                    for (let session = 0; session < totalSessions && attempts < maxAttempts; session++) {
                         let bestSlot = null;
                         let bestScore = -Infinity;
                         let isPreferred = false;
-                        const remainingPeriods = this.getRemainingPeriods(subjectKey);
 
-                        // For labs, we need at least 2 periods remaining to allocate
-                        if (subjectData.isLab && remainingPeriods < 2) {
-                            break; // Cannot allocate partial lab sessions
-                        }
-
+                        // Find the best available slot for this session
                         for (const day of this.settings.days) {
                             for (let period = 0; period < this.settings.totalPeriods; period++) {
                                 if (this.isSlotAvailable(classKey, day, period, subjectData.teachers, 
                                                          subjectData.isLab, subjectData.labRoom)) {
-                                    let score = Math.random();
+                                    let score = Math.random() * 100;
                                     
                                     // Add preference scoring
                                     const prefScore = this.getSlotPreferenceScore(day, period, subjectData.teachers);
                                     score += prefScore;
                                     
                                     // Prefer earlier periods for better distribution
-                                    score += (this.settings.totalPeriods - period) * 0.1;
+                                    score += (this.settings.totalPeriods - period) * 0.5;
+                                    
+                                    // Slight preference for Monday to Friday over Saturday
+                                    if (day !== 'Saturday') {
+                                        score += 1;
+                                    }
                                     
                                     if (score > bestScore) {
                                         bestScore = score;
@@ -1316,15 +1320,14 @@
                                             subjectData.subject, subjectData.teachers, 
                                             subjectData.isLab, subjectData.labRoom);
                             
-                            // Update the allocation tracker with actual periods consumed
-                            const periodsConsumed = subjectData.isLab ? 2 : 1;
-                            this.updateAllocatedPeriods(subjectKey, periodsConsumed);
+                            // Update the allocation tracker
+                            this.updateAllocatedPeriods(subjectKey, allocationUnit);
                             
                             if (isPreferred) {
                                 honoredPreferences++;
                             }
                             
-                            allocated += periodsConsumed;
+                            allocated += allocationUnit;
                         } else {
                             // No available slots found
                             break;
