@@ -1155,9 +1155,18 @@
                 if (this.timetableData[classKey][day][period] !== "FREE") return false;
                 
                 if (isLab) {
+                    // Check if we have space for 2 consecutive periods
                     if (period >= this.settings.totalPeriods - 1) return false;
                     if (this.timetableData[classKey][day][period + 1] !== "FREE") return false;
+                    
+                    // Avoid scheduling lab sessions that would conflict with breaks/lunch
                     if (this.settings.breakPeriods.includes(period + 2) ||
+                        this.settings.lunchPeriod === period + 2) return false;
+                    
+                    // Check if any of the periods are break/lunch periods
+                    if (this.settings.breakPeriods.includes(period + 1) || 
+                        this.settings.lunchPeriod === period + 1 ||
+                        this.settings.breakPeriods.includes(period + 2) || 
                         this.settings.lunchPeriod === period + 2) return false;
                     
                     const teachersFree = teachers.every(teacher => {
@@ -1273,6 +1282,12 @@
                         let bestSlot = null;
                         let bestScore = -Infinity;
                         let isPreferred = false;
+                        const remainingPeriods = this.getRemainingPeriods(subjectKey);
+
+                        // For labs, we need at least 2 periods remaining to allocate
+                        if (subjectData.isLab && remainingPeriods < 2) {
+                            break; // Cannot allocate partial lab sessions
+                        }
 
                         for (const day of this.settings.days) {
                             for (let period = 0; period < this.settings.totalPeriods; period++) {
@@ -1294,48 +1309,20 @@
                         }
 
                         if (bestSlot) {
-                            // KEY FIX: Check how many periods this allocation will consume
-                            const periodsConsumed = subjectData.isLab ? 2 : 1;
-                            const remainingPeriods = this.getRemainingPeriods(subjectKey);
+                            // Allocate the slot
+                            this.allocateSlot(classKey, bestSlot.day, bestSlot.period, 
+                                            subjectData.subject, subjectData.teachers, 
+                                            subjectData.isLab, subjectData.labRoom);
                             
-                            // KEY FIX: Only allocate if we don't exceed the required periods
-                            if (periodsConsumed <= remainingPeriods) {
-                                this.allocateSlot(classKey, bestSlot.day, bestSlot.period, 
-                                                subjectData.subject, subjectData.teachers, 
-                                                subjectData.isLab, subjectData.labRoom);
-                                
-                                // KEY FIX: Update the allocation tracker
-                                this.updateAllocatedPeriods(subjectKey, periodsConsumed);
-                                
-                                if (isPreferred) {
-                                    honoredPreferences++;
-                                }
-                                
-                                allocated += periodsConsumed;
-                            } else {
-                                // KEY FIX: If we can't fit a full lab session, try to allocate remaining single periods
-                                if (subjectData.isLab && remainingPeriods === 1) {
-                                    // For labs, we might have 1 remaining period but need 2 for a lab session
-                                    // This is a design decision - we'll skip this allocation to avoid partial labs
-                                    break;
-                                } else if (!subjectData.isLab && remainingPeriods >= 1) {
-                                    // For regular subjects, allocate the remaining single period
-                                    this.allocateSlot(classKey, bestSlot.day, bestSlot.period, 
-                                                    subjectData.subject, subjectData.teachers, 
-                                                    false, null); // Force non-lab allocation
-                                    
-                                    this.updateAllocatedPeriods(subjectKey, 1);
-                                    
-                                    if (isPreferred) {
-                                        honoredPreferences++;
-                                    }
-                                    
-                                    allocated += 1;
-                                } else {
-                                    // No more periods to allocate
-                                    break;
-                                }
+                            // Update the allocation tracker with actual periods consumed
+                            const periodsConsumed = subjectData.isLab ? 2 : 1;
+                            this.updateAllocatedPeriods(subjectKey, periodsConsumed);
+                            
+                            if (isPreferred) {
+                                honoredPreferences++;
                             }
+                            
+                            allocated += periodsConsumed;
                         } else {
                             // No available slots found
                             break;
