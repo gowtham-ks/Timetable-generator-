@@ -1015,7 +1015,7 @@
                 this.teacherSchedule = {};
                 this.teacherTimetables = {};
                 this.roomSchedule = {};
-                // Reset subject allocation tracker - KEY FIX
+                // Reset subject allocation tracker
                 this.subjectAllocationTracker = {};
                 const periodsPerWeekMap = {};
                 const teacherWorkload = {};
@@ -1036,17 +1036,18 @@
                         periodsPerWeekMap[classKey] = [];
                     }
                     
-                    // Initialize subject allocation tracker - KEY FIX
+                    const isLab = /lab/i.test(row.Subject);
+                    
+                    // Initialize subject allocation tracker
                     this.subjectAllocationTracker[subjectKey] = {
                         allocated: 0,
                         required: parseInt(row.Periods),
                         subject: row.Subject.toString().trim(),
                         teachers: [],
-                        isLab: /lab/i.test(row.Subject),
+                        isLab: isLab,
                         labRoom: null
                     };
                     
-                    const isLab = /lab/i.test(row.Subject);
                     const teacherList = isLab
                         ? row.Staff.split(',').map(t => t.trim()).filter(Boolean)
                         : [row.Staff.toString().trim()];
@@ -1068,7 +1069,7 @@
                         isLab: isLab,
                         labRoom: labRoom,
                         priority: isLab ? 1 : 2,
-                        subjectKey: subjectKey  // KEY FIX: Add subject key for tracking
+                        subjectKey: subjectKey
                     });
                     
                     teacherList.forEach(tname => {
@@ -1163,11 +1164,9 @@
                     if (this.settings.breakPeriods.includes(period + 2) ||
                         this.settings.lunchPeriod === period + 2) return false;
                     
-                    // Check if any of the periods are break/lunch periods
+                    // Check if any of the lab periods conflict with breaks/lunch
                     if (this.settings.breakPeriods.includes(period + 1) || 
-                        this.settings.lunchPeriod === period + 1 ||
-                        this.settings.breakPeriods.includes(period + 2) || 
-                        this.settings.lunchPeriod === period + 2) return false;
+                        this.settings.lunchPeriod === period + 1) return false;
                     
                     const teachersFree = teachers.every(teacher => {
                         const teacherSlots = this.teacherSchedule[teacher] || [];
@@ -1235,19 +1234,19 @@
                 return score;
             }
 
-            // KEY FIX: New method to check if subject has remaining periods to allocate
+            // Check if subject has remaining periods to allocate
             hasRemainingPeriods(subjectKey) {
                 const tracker = this.subjectAllocationTracker[subjectKey];
                 return tracker && tracker.allocated < tracker.required;
             }
 
-            // KEY FIX: New method to get remaining periods for a subject
+            // Get remaining periods for a subject
             getRemainingPeriods(subjectKey) {
                 const tracker = this.subjectAllocationTracker[subjectKey];
                 return tracker ? tracker.required - tracker.allocated : 0;
             }
 
-            // KEY FIX: New method to update allocated periods
+            // Update allocated periods
             updateAllocatedPeriods(subjectKey, periodsToAdd) {
                 if (this.subjectAllocationTracker[subjectKey]) {
                     this.subjectAllocationTracker[subjectKey].allocated += periodsToAdd;
@@ -1273,11 +1272,11 @@
                     });
                     
                     let allocated = 0;
-                    const maxAttempts = 100;
+                    const maxAttempts = 150; // Increased attempts for better allocation
                     let attempts = 0;
-                    const subjectKey = subjectData.subjectKey; // KEY FIX: Use subject key for tracking
+                    const subjectKey = subjectData.subjectKey;
 
-                    // KEY FIX: Continue allocation while we have remaining periods and haven't exceeded attempts
+                    // Continue allocation while we have remaining periods
                     while (this.hasRemainingPeriods(subjectKey) && attempts < maxAttempts) {
                         let bestSlot = null;
                         let bestScore = -Infinity;
@@ -1298,6 +1297,9 @@
                                     // Add preference scoring
                                     const prefScore = this.getSlotPreferenceScore(day, period, subjectData.teachers);
                                     score += prefScore;
+                                    
+                                    // Prefer earlier periods for better distribution
+                                    score += (this.settings.totalPeriods - period) * 0.1;
                                     
                                     if (score > bestScore) {
                                         bestScore = score;
@@ -1332,10 +1334,9 @@
 
                     totalAllocated += allocated;
                     
-                    // KEY FIX: Check for allocation shortfalls using the tracker
+                    // Check for allocation shortfalls using the tracker
                     const finalAllocated = this.subjectAllocationTracker[subjectKey].allocated;
                     if (finalAllocated < subjectData.periods) {
-                        const shortage = subjectData.periods - finalAllocated;
                         warnings.push(`⚠️ ${classKey}: Could only allocate ${finalAllocated}/${subjectData.periods} periods for ${subjectData.subject} (${subjectData.teachers.join(', ')})`);
                     }
                 });
@@ -1354,7 +1355,7 @@
                 const classInfo = `${dept} Y${year}-${section}`;
                 
                 if (isLab) {
-                    // Allocate lab periods
+                    // Allocate lab periods (2 consecutive periods)
                     this.timetableData[classKey][day][period] = `${subject} (Lab)`;
                     this.timetableData[classKey][day][period + 1] = `${subject} (Lab)`;
                     
@@ -1376,7 +1377,7 @@
                         this.roomSchedule[labRoom].push(`${day}_${period + 1}`);
                     }
                 } else {
-                    // Allocate regular subject
+                    // Allocate regular subject (1 period)
                     this.timetableData[classKey][day][period] = subject;
                     
                     // Update teacher schedules and timetables
@@ -1673,7 +1674,7 @@
                 this.roomSchedule = {};
                 this.staffPreferences = {};
                 this.manualPreferences = {};
-                this.subjectAllocationTracker = {}; // KEY FIX: Clear the allocation tracker
+                this.subjectAllocationTracker = {};
                 this.csvData = null;
                 this.stats = {
                     totalClasses: 0,
