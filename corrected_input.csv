@@ -1,0 +1,59 @@
+Department,Year,Section,Subject,Periods,Staff
+AIDS,2,A,Discrete Mathematics & Tutorial,5,Mrs. R.Yamuna(RY)
+AIDS,2,A,Foundations of Data Science,4,Mrs.Thivya Rajkumar(TR)
+AIDS,2,A,Data Structures using Python,5,Mrs.A.S.Harina(ASH)
+AIDS,2,A,Digital Principles and Computer Organization,4,Mrs.A.Aiswarya(AA)
+AIDS,2,A,Java Programming,5,Mrs. T. Dhivya(TD)
+AIDS,2,A,Digital Principles and Computer Organization Laboratory,2,"Mrs.A.Aiswarya(AA),Mrs.T.Dhivya(TD),Ms.A.Dhivya(AD)"
+AIDS,2,A,Foundations of Data Science Laboratory,3,"Mrs.ThivyaRajkumar(TR),Ms.S.Abarna(SA),Mrs.A.S.harina(ASH)"
+AIDS,2,A,Java Programming Laboratory,3,"Mrs.A.Aiswarya(AA),Mrs.T.Dhivya(TD),Mr.V.Manoj Praveen (MP)"
+AIDS,2,A,Data Structures using Python Laboratory,2,"Mrs.A.S.Harina (ASH),Mrs.K.Keerthana(KK),Ms.A.Dhivya(AD)"
+AIDS,2,A,Library,1,Ms.S.Abarna(SA)
+AIDS,2,A,Counseling,1,Mrs.A.S.Harina(ASH)
+AIDS,2,A,Students Personality Development (SPD)/NPTEL,1,Mrs.R.Sri Sujeetha(RSS)
+AIDS,2,A,Seminar,1,Ms.A.Dhivya(AD)
+AIDS,2,A,Games,1,Dr. S. Kanaka vishnumoorthi
+AIDS,2,A,Apptitude,1,Mr.S.Ravichandran(SR)
+AIDS,2,A,C programming,1,Ms.K.Nevedha(KN)
+AIDS,2,A,Placement Test,2,Mr.V.Manoj Praveen(MP)
+AIDS,2,B,Discrete Mathematics & Tutorial,5,Mrs. C.S.Gowri(CSG)	
+AIDS,2,B,Foundations of Data Science,4,Ms.S.Abarna(SA)
+AIDS,2,B,Data Structures using Python,5,Ms.A.Dhivya(AD)	
+AIDS,2,B,Digital Principles and Computer Organization,4,Mrs.K.Keerthana(KK)	
+AIDS,2,B, Java Programming,5,Mr.P.Prabhu Ranjith(PPR)
+AIDS,2,B,Digital Principles and Computer Organization Laboratory,2,"Mrs.K.Keerthana(KK),Mrs.Thivya Rajkumar(TR),Ms.A.Dhivya(AD)"
+AIDS,2,B,Foundations of Data Science Laboratory,3,"Ms.S.Abarna(SA),Mrs.Thivya Rajkumar(TR),Ms.A.Dhivya(AD)	"
+AIDS,2,B,Java Programming Laboratory,3,"Mr.P.Prabhu Ranjith(PPR),Mrs.S.Mouna(SM),Mrs.Thivya Rajkumar(TR)	"
+AIDS,2,B,Data Structures using Python Laboratory,2,"Ms.A.Dhivya(AD),Mrs.R.C.Sangeetha(RCS),Mrs.A.S.Harina(ASH)	"
+AIDS,2,B,Library,1,Ms.S.Abarna(SA)
+AIDS,2,B,Counseling,1,Mrs.S.Mouna(SM)
+AIDS,2,B,SPD/NPTEL,1,Mrs.S.Mouna(SM)	
+AIDS,2,B,Seminar,1,Ms.A.Dhivya(AD)
+AIDS,2,B,Games,1,Dr. S. Kanaka vishnumoorthi
+AIDS,2,B,Apps,1,Ms.B.Kavipriya(BK)	
+AIDS,2,B,C programming,1,Ms.K.S.Subhashree(KSS)
+AIDS,2,B,Placement Test,2,Mr.P.Prabhu Ranjith(PPR)
+AIDS,3,A,Machine Learning,5,Mrs.T.Dhivya(TD)			
+AIDS,3,A,Big Data Analytics,5,Dr.S.Sadesh(SSH)			
+AIDS,3,A,Computer Networks,4,Mrs.A.Aiswarya(AA)			
+AIDS,3,A,Python Web Development,4,Mrs.S.Mouna(SM)			
+AIDS,3,A,Exploratory Data Analysis,4,M.S.Abarna(SA)			
+AIDS,3,A,Consumer Electronics,4,Mr.S.Ashwanth(SA)		
+AIDS,3,A,Machine Learning Laboratory,3,"Mrs.T.Dhivya(TD),Mrs.S.Mouna(SM),Mrs.A.Aiswarya(AA)"
+AIDS,3,A,Big Data Analytics Laboratory,3,"Mrs.K.Keerthana (KK),Dr.S.Sadesh(SSH),Mr.P.PrabhunRanjith(PPR)"
+AIDS,3,A,Computer Networks Laboratory,2,"Mrs.A.Aiswarya(AA),Dr.S.Sadesh(SSH),Ms.A.Dhivya(AD)                 	"
+AIDS,3,A,Aptitude and Logical Reasoning,2,S.Ravichandran(SR)	
+AIDS,3,A,Placement C Laboratory,2,"Mr.jivi(gd),Mr.dharun(ds),K.Nevedha(KN)"
+AIDS,3,A,SPD/NPTEL,1,Mrs.R.C.Sangeetha
+AIDS,3,A,Placement Test,2,Mr.V.Manoj Praveen (MP)
+AIDS,3,A,Counseling,1,Ms.Thivya Rajkumar (TR)	
+AIDS,4,A,Economics and Management for Engineers,5,Mrs.S.Mouna(SM)
+AIDS,4,A,Data Warehousing & Business Intelligence,5,Mr.V.Manoj Praveen (MP)	
+AIDS,4,A,5G Technologies,4,Mr.S.Nachimuthu(SN)	
+AIDS,4,A,Ethics and AI,5,Mrs.K.Keerthana(KK)
+AIDS,4,A,Human Values and Professional Ethics,2,Mr.P.Prabhu Ranjith(PPR)	
+AIDS,4,A,Data Warehousing & Business Intelligence Laboratory,2,"Ms.A.Dhivya(AD),Mr.V.Manoj Praveen(MP),Dr.S.Sadesh(SSH)"
+AIDS,4,A,Indian Constitution and Traditional Knowledge,1,Dr.S.Kalai Selvi(SK)			
+AIDS,4,A,Counseling,1,Mr.V.Manoj Praveen (MP)	
+AIDS,4,A,Project & Product Development,7,Mr.V.Manoj Praveen (MP)	
+AIDS,4,A,Department Placement Training,10,Mr.V.Manoj Praveen (MP)
