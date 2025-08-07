@@ -1039,13 +1039,19 @@
                     const isLab = /lab/i.test(row.Subject);
                     
                     // Initialize subject allocation tracker
+                    // For labs: CSV periods = number of lab sessions, each session = 2 actual periods
+                    // For regular: CSV periods = actual periods needed
+                    const actualPeriodsRequired = isLab ? parseInt(row.Periods) * 2 : parseInt(row.Periods);
+                    
                     this.subjectAllocationTracker[subjectKey] = {
                         allocated: 0,
-                        required: parseInt(row.Periods),
+                        required: actualPeriodsRequired,
                         subject: row.Subject.toString().trim(),
                         teachers: [],
                         isLab: isLab,
-                        labRoom: null
+                        labRoom: null,
+                        sessions: parseInt(row.Periods), // Track original sessions from CSV
+                        sessionsAllocated: 0
                     };
                     
                     const teacherList = isLab
@@ -1276,12 +1282,17 @@
                     let attempts = 0;
                     const subjectKey = subjectData.subjectKey;
 
-                    // For lab subjects, we need to allocate in chunks of 2 periods
-                    const allocationUnit = subjectData.isLab ? 2 : 1;
-                    const totalSessions = Math.floor(subjectData.periods / allocationUnit);
+                    // Get the number of sessions to allocate
+                    const tracker = this.subjectAllocationTracker[subjectKey];
+                    const totalSessions = tracker.sessions;
+                    const periodsPerSession = subjectData.isLab ? 2 : 1;
 
                     // Allocate the required number of sessions
                     for (let session = 0; session < totalSessions && attempts < maxAttempts; session++) {
+                        // Check if we've already allocated this session
+                        if (tracker.sessionsAllocated >= totalSessions) {
+                            break;
+                        }
                         let bestSlot = null;
                         let bestScore = -Infinity;
                         let isPreferred = false;
@@ -1321,13 +1332,14 @@
                                             subjectData.isLab, subjectData.labRoom);
                             
                             // Update the allocation tracker
-                            this.updateAllocatedPeriods(subjectKey, allocationUnit);
+                            this.updateAllocatedPeriods(subjectKey, periodsPerSession);
+                            this.subjectAllocationTracker[subjectKey].sessionsAllocated++;
                             
                             if (isPreferred) {
                                 honoredPreferences++;
                             }
                             
-                            allocated += allocationUnit;
+                            allocated += periodsPerSession;
                         } else {
                             // No available slots found
                             break;
@@ -1338,9 +1350,18 @@
                     totalAllocated += allocated;
                     
                     // Check for allocation shortfalls using the tracker
-                    const finalAllocated = this.subjectAllocationTracker[subjectKey].allocated;
-                    if (finalAllocated < subjectData.periods) {
-                        warnings.push(`⚠️ ${classKey}: Could only allocate ${finalAllocated}/${subjectData.periods} periods for ${subjectData.subject} (${subjectData.teachers.join(', ')})`);
+                    const tracker = this.subjectAllocationTracker[subjectKey];
+                    const finalAllocated = tracker.allocated;
+                    const requiredPeriods = tracker.required;
+                    const sessionsAllocated = tracker.sessionsAllocated;
+                    const requiredSessions = tracker.sessions;
+                    
+                    if (finalAllocated < requiredPeriods) {
+                        if (subjectData.isLab) {
+                            warnings.push(`⚠️ ${classKey}: Could only allocate ${sessionsAllocated}/${requiredSessions} lab sessions (${finalAllocated}/${requiredPeriods} periods) for ${subjectData.subject} (${subjectData.teachers.join(', ')})`);
+                        } else {
+                            warnings.push(`⚠️ ${classKey}: Could only allocate ${finalAllocated}/${requiredPeriods} periods for ${subjectData.subject} (${subjectData.teachers.join(', ')})`);
+                        }
                     }
                 });
 
