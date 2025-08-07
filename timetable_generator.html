@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Timetable Generator</title>
+    
+    <!-- External Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Advanced Timetable Generator</h1>
+        <p>Upload a CSV file to generate a timetable. The CSV should contain columns for Department, Year, Section, Subject, Staff, Periods, LabRoom.</p>
+        
+        <div class="upload-section">
+            <label for="csvUpload" class="file-upload-label">📁 Choose CSV File</label>
+            <input type="file" id="csvUpload" accept=".csv">
+            <button id="generateBtn" class="btn">Generate Timetable</button>
+        </div>
+
+        <div class="timetable-container" id="timetableContainer">
+            <!-- Timetable will be rendered here -->
+        </div>
+
+        <div class="stats-section">
+            <h2>Timetable Statistics</h2>
+            <p>Total Classes: <span id="totalClasses">0</span></p>
+            <p>Total Subjects: <span id="totalSubjects">0</span></p>
+            <p>Total Teachers: <span id="totalTeachers">0</span></p>
+            <p>Allocation Success Rate: <span id="allocationSuccess">0%</span></p>
+            <p>Preferences Honored: <span id="preferencesHonored">0%</span></p>
+        </div>
+
+        <div class="export-section">
+            <button id="exportBtn" class="btn">Export Timetable (JSON)</button>
+            <button id="exportExcelBtn" class="btn">Export to Excel</button>
+            <button id="exportTeacherBtn" class="btn">Export Teacher Timetables</button>
+        </div>
+
+        <div class="preference-section">
+            <h2>Staff Preferences</h2>
+            <p>Add staff preferences (e.g., "Teacher1: Monday,Wednesday,Friday")</p>
+            <textarea id="preferencesInput" rows="5" cols="50"></textarea>
+            <button id="addPreferenceBtn" class="btn">Add Preference</button>
+            <button id="removePreferenceBtn" class="btn">Remove Preference</button>
+            <button id="clearPreferencesBtn" class="btn">Clear All Preferences</button>
+        </div>
+
+        <div class="status-message" id="statusMessage"></div>
+    </div>
+
+    <script>
+        class TimetableGenerator {
+            constructor() {
+                this.timetableData = {};
+                this.teacherSchedule = {};
+                this.teacherTimetables = {};
+                this.roomSchedule = {};
+                this.staffPreferences = {};
+                this.manualPreferences = {};
+                this.csvData = null;
+                this.currentView = 'class';
+                // Track allocated periods per subject-class combination
+                this.subjectAllocationTracker = {};
+                this.settings = {
+                    days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+                    lunchPeriod: 6,
+                    breakPeriods: [3, 9],
+                    totalPeriods: 10,
+                    maxTeacherPeriods: 30,
+                    randomizeAllocation: true
+                };
+                this.stats = {
+                    totalClasses: 0,
+                    totalSubjects: 0,
+                    totalTeachers: 0,
+                    allocationSuccess: 0,
+                    preferencesHonored: 0
+                };
+                this.initializeEventListeners();
+                this.addMobileEventListeners();
+                this.updatePeriodOptions();
+            }
+
+            initializeEventListeners() {
+                document.getElementById('csvUpload').addEventListener('change', (event) => {
+                    const file = event.target.files[0];
+                    if (file) {
+                        Papa.parse(file, {
+                            header: true,
+                            complete: (results) => {
+                                this.csvData = results.data;
+                                document.getElementById('generateBtn').disabled = false;
+                                this.showStatus("CSV file loaded successfully.", "success");
+                            },
+                            error: (error) => {
+                                this.showStatus(`Error loading CSV: ${error.message}`, "error");
+                            }
+                        });
+                    }
+                });
+
+                document.getElementById('generateBtn').addEventListener('click', () => {
+                    this.processData();
+                });
+
+                document.getElementById('exportBtn').addEventListener('click', () => {
+                    this.exportTimetable();
+                });
+
+                document.getElementById('exportExcelBtn').addEventListener('click', () => {
+                    this.exportToExcel();
+                });
+
+                document.getElementById('exportTeacherBtn').addEventListener('click', () => {
+                    this.exportTeacherTimetables();
+                });
+
+                document.getElementById('addPreferenceBtn').addEventListener('click', () => {
+                    const input = document.getElementById('preferencesInput').value;
+                    if (input) {
+                        this.addStaffPreference(input);
+                        document.getElementById('preferencesInput').value = '';
+                    }
+                });
+
+                document.getElementById('removePreferenceBtn').addEventListener('click', () => {
+                    this.removeStaffPreference();
+                });
+
+                document.getElementById('clearPreferencesBtn').addEventListener('click', () => {
+                    this.clearAll();
+                });
+
+                // Add event listeners for mobile menu
+                this.addMobileEventListeners();
+            }
+
+            addMobileEventListeners() {
+                const menuBtn = document.getElementById('menuBtn');
+                const mobileMenu = document.getElementById('mobileMenu');
+                const closeBtn = document.getElementById('closeBtn');
+
+                if (menuBtn && mobileMenu && closeBtn) {
+                    menuBtn.addEventListener('click', () => {
+                        mobileMenu.style.display = 'block';
+                        closeBtn.style.display = 'block';
+                    });
+                    closeBtn.addEventListener('click', () => {
+                        mobileMenu.style.display = 'none';
+                        closeBtn.style.display = 'none';
+                    });
+                }
+            }
+
+            updatePeriodOptions() {
+                const periodSelect = document.getElementById('periodSelect');
+                if (periodSelect) {
+                    periodSelect.innerHTML = '';
+                    for (let i = 0; i < this.settings.totalPeriods; i++) {
+                        const option = document.createElement('option');
+                        option.value = i;
+                        option.textContent = `${i + 1}`;
+                        periodSelect.appendChild(option);
+                    }
+                }
+            }
+
+            showStatus(message, type = 'info') {
+                const statusMessage = document.getElementById('statusMessage');
+                if (statusMessage) {
+                    statusMessage.textContent = message;
+                    statusMessage.className = 'status-message'; // Reset classes
+                    if (type === 'success') {
+                        statusMessage.classList.add('success');
+                    } else if (type === 'error') {
+                        statusMessage.classList.add('error');
+                    } else {
+                        statusMessage.classList.add('info');
+                    }
+                }
+            }
+
+            processStaffPreferences(data) {
+                this.staffPreferences = {};
+                this.manualPreferences = {};
+                const preferencesInput = document.getElementById('preferencesInput').value;
+                if (preferencesInput) {
+                    preferencesInput.split('\n').forEach(line => {
+                        const [teacher, ...days] = line.split(':');
+                        if (teacher && days.length > 0) {
+                            this.staffPreferences[teacher.trim()] = {
+                                preferredSlots: days.map(day => day.trim()).filter(Boolean)
+                            };
+                        }
+                    });
+                }
+                // Merge manual preferences with CSV preferences
+                data.forEach(row => {
+                    const classKey = `${row.Department}_${row.Year}_${row.Section}`;
+                    const subjectKey = `${classKey}_${row.Subject.toString().trim()}`;
+                    const subjectData = this.subjectAllocationTracker[subjectKey];
+                    if (subjectData && subjectData.teachers.length > 0) {
+                        subjectData.teachers.forEach(teacher => {
+                            if (this.staffPreferences[teacher]) {
+                                this.staffPreferences[teacher].preferredSlots = [
+                                    ...new Set([...this.staffPreferences[teacher].preferredSlots, ...subjectData.teachers])
+                                ];
+                            } else {
+                                this.staffPreferences[teacher] = {
+                                    preferredSlots: subjectData.teachers
+                                };
+                            }
+                        });
+                    }
+                });
+            }
+
+            createEmptyTimetable() {
+                const timetable = {};
+                for (const day of this.settings.days) {
+                    timetable[day] = Array(this.settings.totalPeriods).fill(null);
+                }
+                return timetable;
+            }
+
+            isSlotAvailable(classKey, day, period, teachers, isLab, labRoom) {
+                const slot = this.timetableData[classKey][day][period];
+                if (slot) {
+                    return false;
+                }
+                if (isLab && labRoom && slot !== labRoom) {
+                    return false;
+                }
+                return true;
+            }
+
+            getSlotPreferenceScore(day, period, teachers) {
+                let score = 0;
+                for (const teacher of teachers) {
+                    if (this.staffPreferences[teacher] && this.staffPreferences[teacher].preferredSlots.includes(day)) {
+                        score += 0.5; // Higher preference score
+                    }
+                }
+                return score;
+            }
+
+            allocateSlot(classKey, day, period, subject, teachers, isLab, labRoom) {
+                this.timetableData[classKey][day][period] = {
+                    subject: subject,
+                    teachers: teachers,
+                    isLab: isLab,
+                    labRoom: labRoom
+                };
+                this.teacherTimetables[teachers[0]][day][period] = {
+                    subject: subject,
+                    teachers: teachers,
+                    isLab: isLab,
+                    labRoom: labRoom
+                };
+                if (isLab) {
+                    this.roomSchedule[labRoom] = this.roomSchedule[labRoom] || [];
+                    this.roomSchedule[labRoom].push({ day, period });
+                }
+            }
+
+            processData() {
+                this.timetableData = {};
+                this.teacherSchedule = {};
+                this.teacherTimetables = {};
+                this.roomSchedule = {};
+                // Reset subject allocation tracker
+                this.subjectAllocationTracker = {};
+                const periodsPerWeekMap = {};
+                const teacherWorkload = {};
+                let totalPreferences = 0;
+                let honoredPreferences = 0;
+                
+                // Merge manual preferences with CSV preferences
+                this.processStaffPreferences(this.csvData);
+                
+                this.csvData.forEach(row => {
+                    const classKey = `${row.Department}_${row.Year}_${row.Section}`;
+                    const subjectKey = `${classKey}_${row.Subject.toString().trim()}`;
+                    
+                    if (!this.timetableData[classKey]) {
+                        this.timetableData[classKey] = this.createEmptyTimetable();
+                    }
+                    if (!periodsPerWeekMap[classKey]) {
+                        periodsPerWeekMap[classKey] = [];
+                    }
+                    
+                    // Initialize subject allocation tracker
+                    this.subjectAllocationTracker[subjectKey] = {
+                        allocated: 0,
+                        required: parseInt(row.Periods),
+                        subject: row.Subject.toString().trim(),
+                        teachers: [],
+                        isLab: /lab/i.test(row.Subject),
+                        labRoom: null
+                    };
+                    
+                    const isLab = /lab/i.test(row.Subject);
+                    const teacherList = isLab
+                        ? row.Staff.split(',').map(t => t.trim()).filter(Boolean)
+                        : [row.Staff.toString().trim()];
+                    
+                    if (isLab && teacherList.length !== 3) {
+                        throw new Error(`Lab "${row.Subject}" must have exactly 3 staff members, found ${teacherList.length}: ${teacherList.join(', ')}`);
+                    }
+                    
+                    const labRoom = isLab ? (row.LabRoom ? row.LabRoom.toString().trim() : "Lab1") : null;
+                    
+                    // Update tracker with teacher and lab info
+                    this.subjectAllocationTracker[subjectKey].teachers = teacherList;
+                    this.subjectAllocationTracker[subjectKey].labRoom = labRoom;
+                    
+                    periodsPerWeekMap[classKey].push({
+                        subject: row.Subject.toString().trim(),
+                        teachers: teacherList,
+                        periods: parseInt(row.Periods),
+                        isLab: isLab,
+                        labRoom: labRoom,
+                        priority: isLab ? 1 : 2,
+                        subjectKey: subjectKey
+                    });
+                    
+                    teacherList.forEach(tname => {
+                        if (!teacherWorkload[tname]) teacherWorkload[tname] = 0;
+                        teacherWorkload[tname] += parseInt(row.Periods);
+                    });
+                });
+                
+                // Initialize teacher timetables
+                Object.keys(teacherWorkload).forEach(teacher => {
+                    this.teacherTimetables[teacher] = this.createEmptyTimetable();
+                });
+                
+                const overloadedTeachers = Object.entries(teacherWorkload)
+                    .filter(([_, load]) => load > this.settings.maxTeacherPeriods)
+                    .map(([teacher, load]) => `${teacher} (${load} periods)`);
+                
+                let allocationWarnings = [];
+                if (overloadedTeachers.length > 0) {
+                    allocationWarnings.push(
+                        `⚠️ Teachers with excessive workload: ${overloadedTeachers.join(', ')}`
+                    );
+                }
+                
+                let totalAllocated = 0;
+                let totalRequired = 0;
+                
+                for (const classKey in periodsPerWeekMap) {
+                    const subjects = this.prioritizeSubjects(periodsPerWeekMap[classKey]);
+                    const result = this.allocateSubjectsToClass(classKey, subjects);
+                    allocationWarnings.push(...result.warnings);
+                    totalAllocated += result.allocated;
+                    totalRequired += result.required;
+                    totalPreferences += result.totalPreferences || 0;
+                    honoredPreferences += result.honoredPreferences || 0;
+                }
+                
+                this.stats = {
+                    totalClasses: Object.keys(this.timetableData).length,
+                    totalSubjects: this.csvData.length,
+                    totalTeachers: Object.keys(teacherWorkload).length,
+                    allocationSuccess: totalRequired > 0 ? Math.round((totalAllocated / totalRequired) * 100) : 0,
+                    preferencesHonored: totalPreferences > 0 ? Math.round((honoredPreferences / totalPreferences) * 100) : 0
+                };
+                
+                if (this.currentView === 'class') {
+                    this.renderTimetables(allocationWarnings);
+                } else {
+                    this.renderTeacherTimetables(allocationWarnings);
+                }
+                
+                const exportBtn = document.getElementById('exportBtn');
+                const exportExcelBtn = document.getElementById('exportExcelBtn');
+                const exportTeacherBtn = document.getElementById('exportTeacherBtn');
+                if (exportBtn) exportBtn.disabled = false;
+                if (exportExcelBtn) exportExcelBtn.disabled = false;
+                if (exportTeacherBtn) exportTeacherBtn.disabled = false;
+            }
+
+            prioritizeSubjects(subjects) {
+                return subjects.sort((a, b) => {
+                    // Prioritize labs (priority 1) over regular subjects (priority 2)
+                    if (a.isLab && !b.isLab) return -1;
+                    if (!a.isLab && b.isLab) return 1;
+                    // If both are labs or both are regular, sort by priority (1 for labs, 2 for others)
+                    return a.priority - b.priority;
+                });
+            }
+
+            // New method to check if subject has remaining periods to allocate
+            hasRemainingPeriods(subjectKey) {
+                const tracker = this.subjectAllocationTracker[subjectKey];
+                return tracker && tracker.allocated < tracker.required;
+            }
+
+            // New method to get remaining periods for a subject
+            getRemainingPeriods(subjectKey) {
+                const tracker = this.subjectAllocationTracker[subjectKey];
+                return tracker ? tracker.required - tracker.allocated : 0;
+            }
+
+            // New method to update allocated periods
+            updateAllocatedPeriods(subjectKey, periodsToAdd) {
+                if (this.subjectAllocationTracker[subjectKey]) {
+                    this.subjectAllocationTracker[subjectKey].allocated += periodsToAdd;
+                }
+            }
+
+            allocateSubjectsToClass(classKey, subjects) {
+                let totalAllocated = 0;
+                let totalRequired = 0;
+                let totalPreferences = 0;
+                let honoredPreferences = 0;
+                const warnings = [];
+
+                subjects.forEach(subjectData => {
+                    totalRequired += subjectData.periods;
+                    
+                    // Count preferences for this subject
+                    subjectData.teachers.forEach(teacher => {
+                        const prefs = this.staffPreferences[teacher];
+                        if (prefs && prefs.preferredSlots.length > 0) {
+                            totalPreferences++;
+                        }
+                    });
+                    
+                    let allocated = 0;
+                    const maxAttempts = 100;
+                    let attempts = 0;
+                    const subjectKey = subjectData.subjectKey;
+
+                    // Continue allocation while we have remaining periods and haven't exceeded attempts
+                    while (this.hasRemainingPeriods(subjectKey) && attempts < maxAttempts) {
+                        let bestSlot = null;
+                        let bestScore = -Infinity;
+                        let isPreferred = false;
+
+                        for (const day of this.settings.days) {
+                            for (let period = 0; period < this.settings.totalPeriods; period++) {
+                                if (this.isSlotAvailable(classKey, day, period, subjectData.teachers, 
+                                                         subjectData.isLab, subjectData.labRoom)) {
+                                    let score = Math.random();
+                                    
+                                    // Add preference scoring
+                                    const prefScore = this.getSlotPreferenceScore(day, period, subjectData.teachers);
+                                    score += prefScore;
+                                    
+                                    if (score > bestScore) {
+                                        bestScore = score;
+                                        bestSlot = { day, period };
+                                        isPreferred = prefScore > 0;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (bestSlot) {
+                            // Check how many periods this allocation will consume
+                            const periodsConsumed = subjectData.isLab ? 2 : 1;
+                            const remainingPeriods = this.getRemainingPeriods(subjectKey);
+                            
+                            // Only allocate if we don't exceed the required periods
+                            if (periodsConsumed <= remainingPeriods) {
+                                this.allocateSlot(classKey, bestSlot.day, bestSlot.period, 
+                                                subjectData.subject, subjectData.teachers, 
+                                                subjectData.isLab, subjectData.labRoom);
+                                
+                                // Update the allocation tracker
+                                this.updateAllocatedPeriods(subjectKey, periodsConsumed);
+                                
+                                if (isPreferred) {
+                                    honoredPreferences++;
+                                }
+                                
+                                allocated += periodsConsumed;
+                            } else {
+                                // If we can't fit a full lab session, try to allocate remaining single periods
+                                if (subjectData.isLab && remainingPeriods === 1) {
+                                    // For labs, we might have 1 remaining period but need 2 for a lab session
+                                    // This is a design decision - we'll skip this allocation to avoid partial labs
+                                    break;
+                                } else if (!subjectData.isLab && remainingPeriods >= 1) {
+                                    // For regular subjects, allocate the remaining single period
+                                    this.allocateSlot(classKey, bestSlot.day, bestSlot.period, 
+                                                    subjectData.subject, subjectData.teachers, 
+                                                    false, null); // Force non-lab allocation
+                                    
+                                    this.updateAllocatedPeriods(subjectKey, 1);
+                                    
+                                    if (isPreferred) {
+                                        honoredPreferences++;
+                                    }
+                                    
+                                    allocated += 1;
+                                } else {
+                                    // No more periods to allocate
+                                    break;
+                                }
+                            }
+                        } else {
+                            // No available slots found
+                            break;
+                        }
+                        attempts++;
+                    }
+
+                    totalAllocated += allocated;
+                    
+                    // Check for allocation shortfalls
+                    const finalAllocated = this.subjectAllocationTracker[subjectKey].allocated;
+                    if (finalAllocated < subjectData.periods) {
+                        const shortage = subjectData.periods - finalAllocated;
+                        warnings.push(`⚠️ ${classKey}: Could only allocate ${finalAllocated}/${subjectData.periods} periods for ${subjectData.subject} (${subjectData.teachers.join(', ')})`);
+                    }
+                });
+
+                return { 
+                    allocated: totalAllocated, 
+                    required: totalRequired, 
+                    warnings,
+                    totalPreferences,
+                    honoredPreferences
+                };
+            }
+
+            renderTimetables(warnings) {
+                const timetableContainer = document.getElementById('timetableContainer');
+                if (!timetableContainer) return;
+
+                timetableContainer.innerHTML = ''; // Clear previous content
+
+                const classes = Object.keys(this.timetableData);
+                if (classes.length === 0) {
+                    timetableContainer.innerHTML = `
+                        <p style="text-align: center; color: #6c757d; font-style: italic; padding: 50px;">
+                            No timetable data available. Please generate one.
+                        </p>
+                    `;
+                    return;
+                }
+
+                const table = document.createElement('table');
+                table.className = 'timetable-table';
+                table.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th>Day</th>
+                            <th>Period</th>
+                            <th>Class</th>
+                            <th>Subject</th>
+                            <th>Teachers</th>
+                            <th>Lab Room</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                `;
+
+                for (const classKey in this.timetableData) {
+                    for (const day of this.settings.days) {
+                        for (let period = 0; period < this.settings.totalPeriods; period++) {
+                            const slot = this.timetableData[classKey][day][period];
+                            if (slot) {
+                                const row = document.createElement('tr');
+                                row.innerHTML = `
+                                    <td>${day}</td>
+                                    <td>${period + 1}</td>
+                                    <td>${classKey}</td>
+                                    <td>${slot.subject}</td>
+                                    <td>${slot.teachers.join(', ')}</td>
+                                    <td>${slot.isLab && slot.labRoom ? slot.labRoom : 'N/A'}</td>
+                                `;
+                                table.appendChild(row);
+                            }
+                        }
+                    }
+                }
+
+                table.innerHTML += `
+                    </tbody>
+                </table>
+                `;
+
+                timetableContainer.appendChild(table);
+
+                if (warnings.length > 0) {
+                    const warningsDiv = document.createElement('div');
+                    warningsDiv.className = 'warnings-section';
+                    warningsDiv.innerHTML = `
+                        <h3>Warnings:</h3>
+                        <ul>
+                            ${warnings.map(warning => `<li>${warning}</li>`).join('')}
+                        </ul>
+                    `;
+                    timetableContainer.appendChild(warningsDiv);
+                }
+            }
+
+            renderTeacherTimetables(warnings) {
+                const timetableContainer = document.getElementById('timetableContainer');
+                if (!timetableContainer) return;
+
+                timetableContainer.innerHTML = ''; // Clear previous content
+
+                const teachers = Object.keys(this.teacherTimetables);
+                if (teachers.length === 0) {
+                    timetableContainer.innerHTML = `
+                        <p style="text-align: center; color: #6c757d; font-style: italic; padding: 50px;">
+                            No teacher timetables available. Please generate one.
+                        </p>
+                    `;
+                    return;
+                }
+
+                const table = document.createElement('table');
+                table.className = 'timetable-table';
+                table.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th>Teacher</th>
+                            <th>Day</th>
+                            <th>Period</th>
+                            <th>Subject</th>
+                            <th>Class</th>
+                            <th>Lab Room</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                `;
+
+                for (const teacher in this.teacherTimetables) {
+                    for (const day of this.settings.days) {
+                        for (let period = 0; period < this.settings.totalPeriods; period++) {
+                            const slot = this.teacherTimetables[teacher][day][period];
+                            if (slot) {
+                                const row = document.createElement('tr');
+                                row.innerHTML = `
+                                    <td>${teacher}</td>
+                                    <td>${day}</td>
+                                    <td>${period + 1}</td>
+                                    <td>${slot.subject}</td>
+                                    <td>${slot.teachers.join(', ')}</td>
+                                    <td>${slot.isLab && slot.labRoom ? slot.labRoom : 'N/A'}</td>
+                                `;
+                                table.appendChild(row);
+                            }
+                        }
+                    }
+                }
+
+                table.innerHTML += `
+                    </tbody>
+                </table>
+                `;
+
+                timetableContainer.appendChild(table);
+
+                if (warnings.length > 0) {
+                    const warningsDiv = document.createElement('div');
+                    warningsDiv.className = 'warnings-section';
+                    warningsDiv.innerHTML = `
+                        <h3>Warnings:</h3>
+                        <ul>
+                            ${warnings.map(warning => `<li>${warning}</li>`).join('')}
+                        </ul>
+                    `;
+                    timetableContainer.appendChild(warningsDiv);
+                }
+            }
+
+            exportTimetable() {
+                const timetableData = {};
+                for (const classKey in this.timetableData) {
+                    timetableData[classKey] = {};
+                    for (const day of this.settings.days) {
+                        timetableData[classKey][day] = {};
+                        for (let period = 0; period < this.settings.totalPeriods; period++) {
+                            const slot = this.timetableData[classKey][day][period];
+                            if (slot) {
+                                timetableData[classKey][day][period] = {
+                                    subject: slot.subject,
+                                    teachers: slot.teachers,
+                                    isLab: slot.isLab,
+                                    labRoom: slot.labRoom
+                                };
+                            }
+                        }
+                    }
+                }
+                const jsonData = JSON.stringify(timetableData, null, 2);
+                const blob = new Blob([jsonData], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'timetable.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                this.showStatus("Timetable exported to JSON.", "success");
+            }
+
+            exportToExcel() {
+                const worksheet = XLSX.utils.json_to_sheet(this.timetableData);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, "Timetable");
+                XLSX.writeFile(workbook, "timetable.xlsx");
+                this.showStatus("Timetable exported to Excel.", "success");
+            }
+
+            exportTeacherTimetables() {
+                const worksheet = XLSX.utils.json_to_sheet(this.teacherTimetables);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, "Teacher Timetables");
+                XLSX.writeFile(workbook, "teacher_timetables.xlsx");
+                this.showStatus("Teacher timetables exported to Excel.", "success");
+            }
+
+            addStaffPreference(input) {
+                const [teacher, ...days] = input.split(':');
+                if (teacher && days.length > 0) {
+                    const tname = teacher.trim();
+                    if (!this.staffPreferences[tname]) {
+                        this.staffPreferences[tname] = { preferredSlots: [] };
+                    }
+                    this.staffPreferences[tname].preferredSlots = [
+                        ...new Set([...this.staffPreferences[tname].preferredSlots, ...days.map(day => day.trim()).filter(Boolean)])
+                    ];
+                    this.showStatus(`Added preference for ${tname}: ${days.join(', ')}`, "success");
+                } else {
+                    this.showStatus("Please enter a valid preference (e.g., 'Teacher1: Monday,Wednesday,Friday')", "error");
+                }
+            }
+
+            removeStaffPreference() {
+                const preferenceList = document.getElementById('preferenceList');
+                if (preferenceList) {
+                    const selectedPreference = preferenceList.value;
+                    if (selectedPreference) {
+                        delete this.staffPreferences[selectedPreference];
+                        this.showStatus(`Removed preference for ${selectedPreference}`, "success");
+                        this.renderPreferenceList();
+                    } else {
+                        this.showStatus("Please select a preference to remove.", "error");
+                    }
+                }
+            }
+
+            renderPreferenceList() {
+                const preferenceList = document.getElementById('preferenceList');
+                if (!preferenceList) return;
+
+                preferenceList.innerHTML = '';
+                const sortedPreferences = Object.entries(this.staffPreferences).sort(([t1], [t2]) => t1.localeCompare(t2));
+                sortedPreferences.forEach(([teacher, prefs]) => {
+                    const li = document.createElement('li');
+                    li.textContent = `${teacher}: ${prefs.preferredSlots.join(', ')}`;
+                    const removeBtn = document.createElement('button');
+                    removeBtn.textContent = 'Remove';
+                    removeBtn.className = 'remove-preference-btn';
+                    removeBtn.onclick = () => {
+                        delete this.staffPreferences[teacher];
+                        this.showStatus(`Removed preference for ${teacher}`, "success");
+                        this.renderPreferenceList();
+                    };
+                    li.appendChild(removeBtn);
+                    preferenceList.appendChild(li);
+                });
+            }
+
+            clearAll() {
+                this.timetableData = {};
+                this.teacherSchedule = {};
+                this.teacherTimetables = {};
+                this.roomSchedule = {};
+                this.staffPreferences = {};
+                this.manualPreferences = {};
+                this.subjectAllocationTracker = {}; // Clear the allocation tracker
+                this.csvData = null;
+                this.stats = {
+                    totalClasses: 0,
+                    totalSubjects: 0,
+                    totalTeachers: 0,
+                    allocationSuccess: 0,
+                    preferencesHonored: 0
+                };
+                document.getElementById('generateBtn').disabled = true;
+                document.getElementById('exportBtn').disabled = true;
+                document.getElementById('exportExcelBtn').disabled = true;
+                document.getElementById('exportTeacherBtn').disabled = true;
+                document.getElementById('csvUpload').value = '';
+                document.querySelector('.file-upload-label').textContent = '📁 Choose CSV File';
+                document.getElementById('timetableContainer').innerHTML = `
+                    <p style="text-align: center; color: #6c757d; font-style: italic; padding: 50px;">
+                        Upload a CSV file to get started
+                    </p>
+                `;
+                document.getElementById('preferenceList').innerHTML = '';
+                this.showStatus("All data cleared.", "info");
+            }
+        }
+
+        // Expose for preference removal
+        window.timetableGenerator = new TimetableGenerator();
+    </script>
+</body>
+</html>
