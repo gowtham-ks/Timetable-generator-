@@ -981,9 +981,6 @@
                         if (staffList.length !== 3) {
                             errors.push(`Row ${rowNum}: Lab "${row.Subject}" must have exactly 3 staff members, found ${staffList.length}`);
                         }
-                        if (!isNaN(periods) && periods % 2 !== 0) {
-                            warnings.push(`Row ${rowNum}: Lab periods should be even. The last unmatched period will not be allocated.`);
-                        }
                     }
                 });
                 
@@ -1025,7 +1022,6 @@
                 const teacherWorkload = {};
                 let totalPreferences = 0;
                 let honoredPreferences = 0;
-                this.labTeachersSet = new Set();
                 
                 // Merge manual preferences with CSV preferences
                 this.processStaffPreferences(this.csvData);
@@ -1057,10 +1053,6 @@
                     
                     if (isLab && teacherList.length !== 3) {
                         throw new Error(`Lab "${row.Subject}" must have exactly 3 staff members, found ${teacherList.length}: ${teacherList.join(', ')}`);
-                    }
-                    
-                    if (isLab) {
-                        teacherList.forEach(t => this.labTeachersSet.add(t));
                     }
                     
                     const labRoom = isLab ? (row.LabRoom ? row.LabRoom.toString().trim() : "Lab1") : null;
@@ -1195,10 +1187,6 @@
                     
                     return teachersFree;
                 } else {
-                    // Prevent non-lab allocation to lab-only teachers
-                    if (this.labTeachersSet && teachers.some(t => this.labTeachersSet.has(t))) {
-                        return false;
-                    }
                     const teacherFree = teachers.every(teacher => {
                         const teacherSlots = this.teacherSchedule[teacher] || [];
                         const slot = `${day}_${period}`;
@@ -1261,29 +1249,74 @@
                 }
             }
             
+            // Check if a contiguous lab block of the given length fits starting at a given period
+            isLabBlockAvailable(classKey, day, startPeriod, blockLength, teachers, labRoom = null) {
+                if (startPeriod < 0 || startPeriod + blockLength > this.settings.totalPeriods) return false;
+                
+                // Class periods must be all FREE (not Break/Lunch)
+                for (let p = startPeriod; p < startPeriod + blockLength; p++) {
+                    if (this.timetableData[classKey][day][p] !== "FREE") return false;
+                }
+                
+                // Teachers must be free for the entire block and not unavailable
+                for (const teacher of teachers) {
+                    const teacherSlots = this.teacherSchedule[teacher] || [];
+                    const preferences = this.staffPreferences[teacher];
+                    for (let p = startPeriod; p < startPeriod + blockLength; p++) {
+                        const slot = `${day}_${p}`;
+                        if (teacherSlots.includes(slot)) return false;
+                        if (preferences && preferences.unavailableSlots.includes(slot)) return false;
+                    }
+                }
+                
+                // Room must be free for the entire block
+                if (labRoom) {
+                    const roomSlots = this.roomSchedule[labRoom] || [];
+                    for (let p = startPeriod; p < startPeriod + blockLength; p++) {
+                        const roomSlot = `${day}_${p}`;
+                        if (roomSlots.includes(roomSlot)) return false;
+                    }
+                }
+                return true;
+            }
+            
+            // Allocate a contiguous lab block across multiple periods
+            allocateLabBlock(classKey, day, startPeriod, blockLength, subject, teachers, labRoom = null) {
+                const [dept, year, section] = classKey.split('_');
+                const classInfo = `${dept} Y${year}-${section}`;
+                const normalizedTeachers = teachers.map(t => this.normalizeTeacherName(t));
+                
+                for (let p = startPeriod; p < startPeriod + blockLength; p++) {
+                    this.timetableData[classKey][day][p] = `${subject} (Lab)`;
+                }
+                
+                normalizedTeachers.forEach(teacher => {
+                    if (!this.teacherSchedule[teacher]) this.teacherSchedule[teacher] = [];
+                    for (let p = startPeriod; p < startPeriod + blockLength; p++) {
+                        const slot = `${day}_${p}`;
+                        this.teacherSchedule[teacher].push(slot);
+                        this.teacherTimetables[teacher][day][p] = `${subject} (Lab) - ${classInfo}`;
+                    }
+                });
+                
+                if (labRoom) {
+                    if (!this.roomSchedule[labRoom]) this.roomSchedule[labRoom] = [];
+                    for (let p = startPeriod; p < startPeriod + blockLength; p++) {
+                        this.roomSchedule[labRoom].push(`${day}_${p}`);
+                    }
+                }
+            }
+            
             // Attempt to allocate all remaining lab periods as one continuous block in a single day
             tryAllocateContinuousLab(classKey, subjectData, subjectKey) {
-                let remaining = this.getRemainingPeriods(subjectKey);
-                if (remaining <= 0) return 0;
-                // Labs must be allocated in pairs
-                if (remaining % 2 !== 0) remaining -= 1;
-                if (remaining <= 0) return 0;
-                
+                const blockLen = this.getRemainingPeriods(subjectKey);
+                if (blockLen <= 0) return 0;
                 for (const day of this.settings.days) {
-                    for (let start = 0; start <= this.settings.totalPeriods - remaining; start++) {
-                        let feasible = true;
-                        for (let p = start; p < start + remaining; p += 2) {
-                            if (!this.isSlotAvailable(classKey, day, p, subjectData.teachers, true, subjectData.labRoom)) {
-                                feasible = false;
-                                break;
-                            }
-                        }
-                        if (feasible) {
-                            for (let p = start; p < start + remaining; p += 2) {
-                                this.allocateSlot(classKey, day, p, subjectData.subject, subjectData.teachers, true, subjectData.labRoom);
-                            }
-                            this.updateAllocatedPeriods(subjectKey, remaining);
-                            return remaining;
+                    for (let start = 0; start <= this.settings.totalPeriods - blockLen; start++) {
+                        if (this.isLabBlockAvailable(classKey, day, start, blockLen, subjectData.teachers, subjectData.labRoom)) {
+                            this.allocateLabBlock(classKey, day, start, blockLen, subjectData.subject, subjectData.teachers, subjectData.labRoom);
+                            this.updateAllocatedPeriods(subjectKey, blockLen);
+                            return blockLen;
                         }
                     }
                 }
@@ -1300,49 +1333,36 @@
                 subjects.forEach(subjectData => {
                     totalRequired += subjectData.periods;
                     
-                    // If a non-lab subject uses any lab-only teacher, skip allocation
-                    if (!subjectData.isLab && subjectData.teachers.some(t => this.labTeachersSet.has(t))) {
-                        warnings.push(`⚠️ ${classKey}: Skipping non-lab subject ${subjectData.subject} because assigned teacher is lab-only (${subjectData.teachers.join(', ')})`);
+                    const subjectKey = subjectData.subjectKey;
+                    
+                    if (subjectData.isLab) {
+                        // Allocate one continuous block equal to required lab periods
+                        const blockAllocated = this.tryAllocateContinuousLab(classKey, subjectData, subjectKey);
+                        totalAllocated += blockAllocated;
+                        
+                        if (blockAllocated < subjectData.periods) {
+                            const shortage = subjectData.periods - blockAllocated;
+                            warnings.push(`⚠️ ${classKey}: Could only allocate ${blockAllocated}/${subjectData.periods} continuous periods for ${subjectData.subject} (${subjectData.teachers.join(', ')})`);
+                        }
                         return;
                     }
                     
-                    // Count preferences for this subject
-                    subjectData.teachers.forEach(teacher => {
-                        const prefs = this.staffPreferences[teacher];
-                        if (prefs && prefs.preferredSlots.length > 0) {
-                            totalPreferences++;
-                        }
-                    });
-                    
+                    // Non-lab allocation loop
                     let allocated = 0;
                     const maxAttempts = this.settings.maxAllocationAttempts;
                     let attempts = 0;
-                    const subjectKey = subjectData.subjectKey;
-
-                    // Prefer to allocate labs as a single continuous block in one day
-                    if (subjectData.isLab) {
-                        const continuous = this.tryAllocateContinuousLab(classKey, subjectData, subjectKey);
-                        if (continuous > 0) {
-                            allocated += continuous;
-                        }
-                    }
-
-                    // Continue allocation while we have remaining periods and haven't exceeded attempts
+                    
                     while (this.hasRemainingPeriods(subjectKey) && attempts < maxAttempts) {
                         let bestSlot = null;
                         let bestScore = -Infinity;
                         let isPreferred = false;
-
+                        
                         for (const day of this.settings.days) {
                             for (let period = 0; period < this.settings.totalPeriods; period++) {
-                                if (this.isSlotAvailable(classKey, day, period, subjectData.teachers, 
-                                                         subjectData.isLab, subjectData.labRoom)) {
+                                if (this.isSlotAvailable(classKey, day, period, subjectData.teachers, false, null)) {
                                     let score = Math.random();
-                                    
-                                    // Add preference scoring
                                     const prefScore = this.getSlotPreferenceScore(day, period, subjectData.teachers);
                                     score += prefScore;
-                                    
                                     if (score > bestScore) {
                                         bestScore = score;
                                         bestSlot = { day, period };
@@ -1351,53 +1371,19 @@
                                 }
                             }
                         }
-
+                        
                         if (bestSlot) {
-                            const periodsConsumed = subjectData.isLab ? 2 : 1;
-                            const remainingPeriods = this.getRemainingPeriods(subjectKey);
-                            
-                            if (periodsConsumed <= remainingPeriods) {
-                                this.allocateSlot(classKey, bestSlot.day, bestSlot.period, 
-                                                  subjectData.subject, subjectData.teachers, 
-                                                  subjectData.isLab, subjectData.labRoom);
-                                
-                                this.updateAllocatedPeriods(subjectKey, periodsConsumed);
-                                
-                                if (isPreferred) {
-                                    honoredPreferences++;
-                                }
-                                
-                                allocated += periodsConsumed;
-                            } else {
-                                if (subjectData.isLab && remainingPeriods === 1) {
-                                    // Skip partial lab allocation
-                                    break;
-                                } else if (!subjectData.isLab && remainingPeriods >= 1) {
-                                    // Allocate remaining single period for regular subjects
-                                    this.allocateSlot(classKey, bestSlot.day, bestSlot.period, 
-                                                      subjectData.subject, subjectData.teachers, 
-                                                      false, null);
-                                    
-                                    this.updateAllocatedPeriods(subjectKey, 1);
-                                    
-                                    if (isPreferred) {
-                                        honoredPreferences++;
-                                    }
-                                    
-                                    allocated += 1;
-                                } else {
-                                    // No more periods to allocate
-                                    break;
-                                }
-                            }
+                            this.allocateSlot(classKey, bestSlot.day, bestSlot.period, subjectData.subject, subjectData.teachers, false, null);
+                            this.updateAllocatedPeriods(subjectKey, 1);
+                            if (isPreferred) honoredPreferences++;
+                            allocated += 1;
                         } else {
                             break;
                         }
                         attempts++;
                     }
-
-                    totalAllocated += allocated;
                     
+                    totalAllocated += allocated;
                     if (allocated < subjectData.periods) {
                         const shortage = subjectData.periods - allocated;
                         warnings.push(`⚠️ ${classKey}: Could only allocate ${allocated}/${subjectData.periods} periods for ${subjectData.subject} (${subjectData.teachers.join(', ')})`);
