@@ -1099,12 +1099,42 @@
                 let totalAllocated = 0;
                 let totalRequired = 0;
                 
+                // Compute total required periods across all subjects (labs + non-labs)
                 for (const classKey in periodsPerWeekMap) {
-                    const subjects = this.prioritizeSubjects(periodsPerWeekMap[classKey]);
-                    const result = this.allocateSubjectsToClass(classKey, subjects);
+                    periodsPerWeekMap[classKey].forEach(s => totalRequired += s.periods);
+                }
+                
+                // Phase 1: Allocate all labs globally as continuous blocks
+                const labsToAllocate = [];
+                const nonLabSubjectsByClass = {};
+                
+                for (const classKey in periodsPerWeekMap) {
+                    const ordered = this.prioritizeSubjects(periodsPerWeekMap[classKey]);
+                    ordered.forEach(subjectData => {
+                        if (subjectData.isLab) {
+                            labsToAllocate.push({ classKey, subjectData });
+                        } else {
+                            if (!nonLabSubjectsByClass[classKey]) nonLabSubjectsByClass[classKey] = [];
+                            nonLabSubjectsByClass[classKey].push(subjectData);
+                        }
+                    });
+                }
+                
+                labsToAllocate.forEach(({ classKey, subjectData }) => {
+                    const subjectKey = subjectData.subjectKey;
+                    const blockAllocated = this.tryAllocateContinuousLab(classKey, subjectData, subjectKey);
+                    totalAllocated += blockAllocated;
+                    if (blockAllocated < subjectData.periods) {
+                        const shortage = subjectData.periods - blockAllocated;
+                        allocationWarnings.push(`⚠️ ${classKey}: Could only allocate ${blockAllocated}/${subjectData.periods} continuous periods for ${subjectData.subject} (${subjectData.teachers.join(', ')})`);
+                    }
+                });
+                
+                // Phase 2: Allocate all non-lab subjects per class
+                for (const classKey in nonLabSubjectsByClass) {
+                    const result = this.allocateSubjectsToClass(classKey, nonLabSubjectsByClass[classKey]);
                     allocationWarnings.push(...result.warnings);
                     totalAllocated += result.allocated;
-                    totalRequired += result.required;
                     totalPreferences += result.totalPreferences || 0;
                     honoredPreferences += result.honoredPreferences || 0;
                 }
