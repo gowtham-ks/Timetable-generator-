@@ -580,7 +580,8 @@
                     breakPeriods: [3, 9],
                     totalPeriods: 10,
                     maxTeacherPeriods: 30,
-                    randomizeAllocation: true
+                    randomizeAllocation: true,
+                    maxAllocationAttempts: 10000
                 };
                 this.stats = {
                     totalClasses: 0,
@@ -649,14 +650,16 @@
             }
 
             addManualPreference() {
-                const teacherName = document.getElementById('teacherName').value.trim();
+                const teacherNameRaw = document.getElementById('teacherName').value.trim();
                 const preferredDay = document.getElementById('preferredDay').value;
                 const preferredPeriod = document.getElementById('preferredPeriod').value;
                 
-                if (!teacherName || !preferredDay || !preferredPeriod) {
+                if (!teacherNameRaw || !preferredDay || !preferredPeriod) {
                     this.showStatus("Please fill in all preference fields", "error");
                     return;
                 }
+                
+                const teacherName = this.normalizeTeacherName(teacherNameRaw);
                 
                 if (!this.manualPreferences[teacherName]) {
                     this.manualPreferences[teacherName] = {
@@ -882,7 +885,7 @@
                 this.staffPreferences = {};
                 
                 data.forEach((row, index) => {
-                    const staffNames = row.Staff.toString().split(',').map(s => s.trim()).filter(Boolean);
+                    const staffNames = row.Staff.toString().split(',').map(s => this.normalizeTeacherName(s)).filter(Boolean);
                     
                     staffNames.forEach(staffName => {
                         if (!this.staffPreferences[staffName]) {
@@ -940,14 +943,15 @@
                 
                 // Merge manual preferences with CSV preferences
                 for (const [teacher, prefs] of Object.entries(this.manualPreferences)) {
-                    if (!this.staffPreferences[teacher]) {
-                        this.staffPreferences[teacher] = {
+                    const tKey = this.normalizeTeacherName(teacher);
+                    if (!this.staffPreferences[tKey]) {
+                        this.staffPreferences[tKey] = {
                             preferredSlots: [],
                             unavailableSlots: []
                         };
                     }
-                    this.staffPreferences[teacher].preferredSlots.push(...prefs.preferredSlots);
-                    this.staffPreferences[teacher].unavailableSlots.push(...prefs.unavailableSlots);
+                    this.staffPreferences[tKey].preferredSlots.push(...prefs.preferredSlots);
+                    this.staffPreferences[tKey].unavailableSlots.push(...prefs.unavailableSlots);
                 }
             }
 
@@ -973,9 +977,12 @@
                     
                     const isLab = /lab/i.test(row.Subject);
                     if (isLab) {
-                        const staffList = row.Staff.split(',').map(s => s.trim()).filter(Boolean);
+                        const staffList = row.Staff.split(',').map(s => this.normalizeTeacherName(s)).filter(Boolean);
                         if (staffList.length !== 3) {
                             errors.push(`Row ${rowNum}: Lab "${row.Subject}" must have exactly 3 staff members, found ${staffList.length}`);
+                        }
+                        if (!isNaN(periods) && periods % 2 !== 0) {
+                            warnings.push(`Row ${rowNum}: Lab periods should be even. The last unmatched period will not be allocated.`);
                         }
                     }
                 });
@@ -1018,6 +1025,7 @@
                 const teacherWorkload = {};
                 let totalPreferences = 0;
                 let honoredPreferences = 0;
+                this.labTeachersSet = new Set();
                 
                 // Merge manual preferences with CSV preferences
                 this.processStaffPreferences(this.csvData);
@@ -1044,11 +1052,15 @@
                     
                     const isLab = /lab/i.test(row.Subject);
                     const teacherList = isLab
-                        ? row.Staff.split(',').map(t => t.trim()).filter(Boolean)
-                        : [row.Staff.toString().trim()];
+                        ? row.Staff.split(',').map(t => this.normalizeTeacherName(t)).filter(Boolean)
+                        : [this.normalizeTeacherName(row.Staff.toString())];
                     
                     if (isLab && teacherList.length !== 3) {
                         throw new Error(`Lab "${row.Subject}" must have exactly 3 staff members, found ${teacherList.length}: ${teacherList.join(', ')}`);
+                    }
+                    
+                    if (isLab) {
+                        teacherList.forEach(t => this.labTeachersSet.add(t));
                     }
                     
                     const labRoom = isLab ? (row.LabRoom ? row.LabRoom.toString().trim() : "Lab1") : null;
@@ -1183,6 +1195,10 @@
                     
                     return teachersFree;
                 } else {
+                    // Prevent non-lab allocation to lab-only teachers
+                    if (this.labTeachersSet && teachers.some(t => this.labTeachersSet.has(t))) {
+                        return false;
+                    }
                     const teacherFree = teachers.every(teacher => {
                         const teacherSlots = this.teacherSchedule[teacher] || [];
                         const slot = `${day}_${period}`;
@@ -1222,6 +1238,10 @@
                 return score;
             }
             
+            normalizeTeacherName(name) {
+                return name ? name.toString().trim().replace(/\s+/g, ' ') : '';
+            }
+            
             // KEY FIX: New method to check if subject has remaining periods to allocate
             hasRemainingPeriods(subjectKey) {
                 const tracker = this.subjectAllocationTracker[subjectKey];
@@ -1241,6 +1261,35 @@
                 }
             }
             
+            // Attempt to allocate all remaining lab periods as one continuous block in a single day
+            tryAllocateContinuousLab(classKey, subjectData, subjectKey) {
+                let remaining = this.getRemainingPeriods(subjectKey);
+                if (remaining <= 0) return 0;
+                // Labs must be allocated in pairs
+                if (remaining % 2 !== 0) remaining -= 1;
+                if (remaining <= 0) return 0;
+                
+                for (const day of this.settings.days) {
+                    for (let start = 0; start <= this.settings.totalPeriods - remaining; start++) {
+                        let feasible = true;
+                        for (let p = start; p < start + remaining; p += 2) {
+                            if (!this.isSlotAvailable(classKey, day, p, subjectData.teachers, true, subjectData.labRoom)) {
+                                feasible = false;
+                                break;
+                            }
+                        }
+                        if (feasible) {
+                            for (let p = start; p < start + remaining; p += 2) {
+                                this.allocateSlot(classKey, day, p, subjectData.subject, subjectData.teachers, true, subjectData.labRoom);
+                            }
+                            this.updateAllocatedPeriods(subjectKey, remaining);
+                            return remaining;
+                        }
+                    }
+                }
+                return 0;
+            }
+            
             allocateSubjectsToClass(classKey, subjects) {
                 let totalAllocated = 0;
                 let totalRequired = 0;
@@ -1251,6 +1300,12 @@
                 subjects.forEach(subjectData => {
                     totalRequired += subjectData.periods;
                     
+                    // If a non-lab subject uses any lab-only teacher, skip allocation
+                    if (!subjectData.isLab && subjectData.teachers.some(t => this.labTeachersSet.has(t))) {
+                        warnings.push(`⚠️ ${classKey}: Skipping non-lab subject ${subjectData.subject} because assigned teacher is lab-only (${subjectData.teachers.join(', ')})`);
+                        return;
+                    }
+                    
                     // Count preferences for this subject
                     subjectData.teachers.forEach(teacher => {
                         const prefs = this.staffPreferences[teacher];
@@ -1260,9 +1315,17 @@
                     });
                     
                     let allocated = 0;
-                    const maxAttempts = 100;
+                    const maxAttempts = this.settings.maxAllocationAttempts;
                     let attempts = 0;
                     const subjectKey = subjectData.subjectKey;
+
+                    // Prefer to allocate labs as a single continuous block in one day
+                    if (subjectData.isLab) {
+                        const continuous = this.tryAllocateContinuousLab(classKey, subjectData, subjectKey);
+                        if (continuous > 0) {
+                            allocated += continuous;
+                        }
+                    }
 
                     // Continue allocation while we have remaining periods and haven't exceeded attempts
                     while (this.hasRemainingPeriods(subjectKey) && attempts < maxAttempts) {
@@ -1354,13 +1417,15 @@
                 const [dept, year, section] = classKey.split('_');
                 const classInfo = `${dept} Y${year}-${section}`;
                 
+                const normalizedTeachers = teachers.map(t => this.normalizeTeacherName(t));
+                
                 if (isLab) {
                     // Allocate lab periods
                     this.timetableData[classKey][day][period] = `${subject} (Lab)`;
                     this.timetableData[classKey][day][period + 1] = `${subject} (Lab)`;
                     
                     // Update teacher schedules and timetables
-                    teachers.forEach(teacher => {
+                    normalizedTeachers.forEach(teacher => {
                         if (!this.teacherSchedule[teacher]) this.teacherSchedule[teacher] = [];
                         this.teacherSchedule[teacher].push(`${day}_${period}`);
                         this.teacherSchedule[teacher].push(`${day}_${period + 1}`);
@@ -1381,7 +1446,7 @@
                     this.timetableData[classKey][day][period] = subject;
                     
                     // Update teacher schedules and timetables
-                    teachers.forEach(teacher => {
+                    normalizedTeachers.forEach(teacher => {
                         if (!this.teacherSchedule[teacher]) this.teacherSchedule[teacher] = [];
                         this.teacherSchedule[teacher].push(`${day}_${period}`);
                         
