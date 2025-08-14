@@ -573,6 +573,7 @@
                 this.manualPreferences = {};
                 this.csvData = null;
                 this.currentView = 'class';
+                this.subjectAllocationTracker = {};
                 this.settings = {
                     days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
                     lunchPeriod: 6,
@@ -1023,12 +1024,23 @@
                 
                 this.csvData.forEach(row => {
                     const classKey = `${row.Department}_${row.Year}_${row.Section}`;
+                    const subjectKey = `${classKey}_${row.Subject.toString().trim()}`;
                     if (!this.timetableData[classKey]) {
                         this.timetableData[classKey] = this.createEmptyTimetable();
                     }
                     if (!periodsPerWeekMap[classKey]) {
                         periodsPerWeekMap[classKey] = [];
                     }
+                    
+                    // Initialize allocation tracker for this subject-key
+                    this.subjectAllocationTracker[subjectKey] = {
+                        allocated: 0,
+                        required: parseInt(row.Periods),
+                        subject: row.Subject.toString().trim(),
+                        teachers: [],
+                        isLab: /lab/i.test(row.Subject),
+                        labRoom: null
+                    };
                     
                     const isLab = /lab/i.test(row.Subject);
                     const teacherList = isLab
@@ -1041,13 +1053,18 @@
                     
                     const labRoom = isLab ? (row.LabRoom ? row.LabRoom.toString().trim() : "Lab1") : null;
                     
+                    // Update tracker with teacher and lab info
+                    this.subjectAllocationTracker[subjectKey].teachers = teacherList;
+                    this.subjectAllocationTracker[subjectKey].labRoom = labRoom;
+                    
                     periodsPerWeekMap[classKey].push({
                         subject: row.Subject.toString().trim(),
                         teachers: teacherList,
                         periods: parseInt(row.Periods),
                         isLab: isLab,
                         labRoom: labRoom,
-                        priority: isLab ? 1 : 2
+                        priority: isLab ? 1 : 2,
+                        subjectKey: subjectKey
                     });
                     
                     teacherList.forEach(tname => {
@@ -1204,7 +1221,26 @@
                 
                 return score;
             }
-
+            
+            // KEY FIX: New method to check if subject has remaining periods to allocate
+            hasRemainingPeriods(subjectKey) {
+                const tracker = this.subjectAllocationTracker[subjectKey];
+                return tracker && tracker.allocated < tracker.required;
+            }
+            
+            // KEY FIX: New method to get remaining periods for a subject
+            getRemainingPeriods(subjectKey) {
+                const tracker = this.subjectAllocationTracker[subjectKey];
+                return tracker ? tracker.required - tracker.allocated : 0;
+            }
+            
+            // KEY FIX: New method to update allocated periods
+            updateAllocatedPeriods(subjectKey, periodsToAdd) {
+                if (this.subjectAllocationTracker[subjectKey]) {
+                    this.subjectAllocationTracker[subjectKey].allocated += periodsToAdd;
+                }
+            }
+            
             allocateSubjectsToClass(classKey, subjects) {
                 let totalAllocated = 0;
                 let totalRequired = 0;
@@ -1224,10 +1260,12 @@
                     });
                     
                     let allocated = 0;
-                    const maxAttempts = 1000;
+                    const maxAttempts = 100;
                     let attempts = 0;
+                    const subjectKey = subjectData.subjectKey;
 
-                    while (allocated < subjectData.periods && attempts < maxAttempts) {
+                    // Continue allocation while we have remaining periods and haven't exceeded attempts
+                    while (this.hasRemainingPeriods(subjectKey) && attempts < maxAttempts) {
                         let bestSlot = null;
                         let bestScore = -Infinity;
                         let isPreferred = false;
@@ -1252,15 +1290,43 @@
                         }
 
                         if (bestSlot) {
-                            this.allocateSlot(classKey, bestSlot.day, bestSlot.period, 
-                                            subjectData.subject, subjectData.teachers, 
-                                            subjectData.isLab, subjectData.labRoom);
+                            const periodsConsumed = subjectData.isLab ? 2 : 1;
+                            const remainingPeriods = this.getRemainingPeriods(subjectKey);
                             
-                            if (isPreferred) {
-                                honoredPreferences++;
+                            if (periodsConsumed <= remainingPeriods) {
+                                this.allocateSlot(classKey, bestSlot.day, bestSlot.period, 
+                                                  subjectData.subject, subjectData.teachers, 
+                                                  subjectData.isLab, subjectData.labRoom);
+                                
+                                this.updateAllocatedPeriods(subjectKey, periodsConsumed);
+                                
+                                if (isPreferred) {
+                                    honoredPreferences++;
+                                }
+                                
+                                allocated += periodsConsumed;
+                            } else {
+                                if (subjectData.isLab && remainingPeriods === 1) {
+                                    // Skip partial lab allocation
+                                    break;
+                                } else if (!subjectData.isLab && remainingPeriods >= 1) {
+                                    // Allocate remaining single period for regular subjects
+                                    this.allocateSlot(classKey, bestSlot.day, bestSlot.period, 
+                                                      subjectData.subject, subjectData.teachers, 
+                                                      false, null);
+                                    
+                                    this.updateAllocatedPeriods(subjectKey, 1);
+                                    
+                                    if (isPreferred) {
+                                        honoredPreferences++;
+                                    }
+                                    
+                                    allocated += 1;
+                                } else {
+                                    // No more periods to allocate
+                                    break;
+                                }
                             }
-                            
-                            allocated += subjectData.isLab ? 2 : 1;
                         } else {
                             break;
                         }
@@ -1609,6 +1675,7 @@
                 this.staffPreferences = {};
                 this.manualPreferences = {};
                 this.csvData = null;
+                this.subjectAllocationTracker = {}; // Clear the new tracker
                 this.stats = {
                     totalClasses: 0,
                     totalSubjects: 0,
