@@ -1269,9 +1269,10 @@
             isLabBlockAvailable(classKey, day, startPeriod, blockLength, teachers, labRoom = null) {
                 if (startPeriod < 0 || startPeriod + blockLength > this.settings.totalPeriods) return false;
                 
-                // Class periods must be all FREE (not Break/Lunch)
+                // Allow labs to cross Break/Lunch by treating them as available
                 for (let p = startPeriod; p < startPeriod + blockLength; p++) {
-                    if (this.timetableData[classKey][day][p] !== "FREE") return false;
+                    const cell = this.timetableData[classKey][day][p];
+                    if (cell !== "FREE" && cell !== "Break" && cell !== "Lunch") return false;
                 }
                 
                 // Teachers must be free for the entire block and not unavailable
