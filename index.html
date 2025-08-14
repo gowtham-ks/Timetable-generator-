@@ -574,6 +574,7 @@
                 this.csvData = null;
                 this.currentView = 'class';
                 this.subjectAllocationTracker = {};
+                this.teacherIdMap = {};
                 this.settings = {
                     days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
                     lunchPeriod: 6,
@@ -659,20 +660,20 @@
                     return;
                 }
                 
-                const teacherName = this.normalizeTeacherName(teacherNameRaw);
+                const { id: teacherId, name: displayName } = this.getTeacherIdAndName(teacherNameRaw);
                 
-                if (!this.manualPreferences[teacherName]) {
-                    this.manualPreferences[teacherName] = {
+                if (!this.manualPreferences[teacherId]) {
+                    this.manualPreferences[teacherId] = {
                         preferredSlots: [],
                         unavailableSlots: []
                     };
                 }
                 
                 const slotKey = `${preferredDay}_${parseInt(preferredPeriod) - 1}`;
-                if (!this.manualPreferences[teacherName].preferredSlots.includes(slotKey)) {
-                    this.manualPreferences[teacherName].preferredSlots.push(slotKey);
+                if (!this.manualPreferences[teacherId].preferredSlots.includes(slotKey)) {
+                    this.manualPreferences[teacherId].preferredSlots.push(slotKey);
                     this.renderPreferenceList();
-                    this.showStatus(`Preference added for ${teacherName}`, "success");
+                    this.showStatus(`Preference added for ${displayName}`, "success");
                 }
                 
                 // Clear form
@@ -685,16 +686,17 @@
                 const container = document.getElementById('preferenceList');
                 let html = '';
                 
-                for (const [teacher, prefs] of Object.entries(this.manualPreferences)) {
+                for (const [teacherId, prefs] of Object.entries(this.manualPreferences)) {
+                    const teacherLabel = this.teacherIdMap[teacherId] || teacherId;
                     if (prefs.preferredSlots.length > 0) {
-                        html += `<h4 style="margin: 10px 0 5px 0; color: #495057;">${teacher}</h4>`;
+                        html += `<h4 style="margin: 10px 0 5px 0; color: #495057;">${teacherLabel}</h4>`;
                         prefs.preferredSlots.forEach(slot => {
                             const [day, periodIndex] = slot.split('_');
                             const period = parseInt(periodIndex) + 1;
                             html += `
                                 <div class="preference-item">
                                     <span>Prefers ${day}, Period ${period}</span>
-                                    <button class="remove-preference" onclick="window.timetableGenerator.removePreference('${teacher}', '${slot}')">
+                                    <button class="remove-preference" onclick="window.timetableGenerator.removePreference('${teacherId}', '${slot}')">
                                         Remove
                                     </button>
                                 </div>
@@ -885,22 +887,25 @@
                 this.staffPreferences = {};
                 
                 data.forEach((row, index) => {
-                    const staffNames = row.Staff.toString().split(',').map(s => this.normalizeTeacherName(s)).filter(Boolean);
+                    const staffNames = row.Staff.toString().split(',').map(s => s.trim()).filter(Boolean);
                     
-                    staffNames.forEach(staffName => {
-                        if (!this.staffPreferences[staffName]) {
-                            this.staffPreferences[staffName] = {
+                    staffNames.forEach(rawName => {
+                        const { id: staffId, name: displayName } = this.getTeacherIdAndName(rawName);
+                        if (!this.staffPreferences[staffId]) {
+                            this.staffPreferences[staffId] = {
                                 preferredSlots: [],
                                 unavailableSlots: []
                             };
                         }
+                        // Record display name for rendering
+                        if (!this.teacherIdMap[staffId]) this.teacherIdMap[staffId] = displayName;
                         
                         if (row.PreferredDay && row.PreferredPeriod) {
                             const prefDay = row.PreferredDay.toString().trim();
                             const prefPeriod = parseInt(row.PreferredPeriod);
                             
                             if (this.settings.days.includes(prefDay) && prefPeriod > 0 && prefPeriod <= this.settings.totalPeriods) {
-                                this.staffPreferences[staffName].preferredSlots.push(`${prefDay}_${prefPeriod - 1}`);
+                                this.staffPreferences[staffId].preferredSlots.push(`${prefDay}_${prefPeriod - 1}`);
                             }
                         }
                         
@@ -909,7 +914,7 @@
                             const unavailPeriod = parseInt(row.UnavailablePeriod);
                             
                             if (this.settings.days.includes(unavailDay) && unavailPeriod > 0 && unavailPeriod <= this.settings.totalPeriods) {
-                                this.staffPreferences[staffName].unavailableSlots.push(`${unavailDay}_${unavailPeriod - 1}`);
+                                this.staffPreferences[staffId].unavailableSlots.push(`${unavailDay}_${unavailPeriod - 1}`);
                             }
                         }
                         
@@ -920,7 +925,7 @@
                                 if (day && period && this.settings.days.includes(day)) {
                                     const periodNum = parseInt(period) - 1;
                                     if (periodNum >= 0 && periodNum < this.settings.totalPeriods) {
-                                        this.staffPreferences[staffName].preferredSlots.push(`${day}_${periodNum}`);
+                                        this.staffPreferences[staffId].preferredSlots.push(`${day}_${periodNum}`);
                                     }
                                 }
                             });
@@ -933,7 +938,7 @@
                                 if (day && period && this.settings.days.includes(day)) {
                                     const periodNum = parseInt(period) - 1;
                                     if (periodNum >= 0 && periodNum < this.settings.totalPeriods) {
-                                        this.staffPreferences[staffName].unavailableSlots.push(`${day}_${periodNum}`);
+                                        this.staffPreferences[staffId].unavailableSlots.push(`${day}_${periodNum}`);
                                     }
                                 }
                             });
@@ -942,16 +947,15 @@
                 });
                 
                 // Merge manual preferences with CSV preferences
-                for (const [teacher, prefs] of Object.entries(this.manualPreferences)) {
-                    const tKey = this.normalizeTeacherName(teacher);
-                    if (!this.staffPreferences[tKey]) {
-                        this.staffPreferences[tKey] = {
+                for (const [teacherId, prefs] of Object.entries(this.manualPreferences)) {
+                    if (!this.staffPreferences[teacherId]) {
+                        this.staffPreferences[teacherId] = {
                             preferredSlots: [],
                             unavailableSlots: []
                         };
                     }
-                    this.staffPreferences[tKey].preferredSlots.push(...prefs.preferredSlots);
-                    this.staffPreferences[tKey].unavailableSlots.push(...prefs.unavailableSlots);
+                    this.staffPreferences[teacherId].preferredSlots.push(...prefs.preferredSlots);
+                    this.staffPreferences[teacherId].unavailableSlots.push(...prefs.unavailableSlots);
                 }
             }
 
@@ -1047,23 +1051,22 @@
                     };
                     
                     const isLab = /lab/i.test(row.Subject);
-                    const teacherList = isLab
-                        ? row.Staff.split(',').map(t => this.normalizeTeacherName(t)).filter(Boolean)
-                        : [this.normalizeTeacherName(row.Staff.toString())];
+                    const teacherListRaw = row.Staff.split(',').map(t => t.trim()).filter(Boolean);
+                    const teacherIdList = teacherListRaw.map(t => this.getTeacherIdAndName(t).id);
                     
-                    if (isLab && teacherList.length !== 3) {
-                        throw new Error(`Lab "${row.Subject}" must have exactly 3 staff members, found ${teacherList.length}: ${teacherList.join(', ')}`);
+                    if (isLab && teacherIdList.length !== 3) {
+                        throw new Error(`Lab "${row.Subject}" must have exactly 3 staff members, found ${teacherIdList.length}: ${teacherListRaw.join(', ')}`);
                     }
                     
                     const labRoom = isLab ? (row.LabRoom ? row.LabRoom.toString().trim() : "Lab1") : null;
                     
                     // Update tracker with teacher and lab info
-                    this.subjectAllocationTracker[subjectKey].teachers = teacherList;
+                    this.subjectAllocationTracker[subjectKey].teachers = teacherIdList;
                     this.subjectAllocationTracker[subjectKey].labRoom = labRoom;
                     
                     periodsPerWeekMap[classKey].push({
                         subject: row.Subject.toString().trim(),
-                        teachers: teacherList,
+                        teachers: teacherIdList,
                         periods: parseInt(row.Periods),
                         isLab: isLab,
                         labRoom: labRoom,
@@ -1071,9 +1074,9 @@
                         subjectKey: subjectKey
                     });
                     
-                    teacherList.forEach(tname => {
-                        if (!teacherWorkload[tname]) teacherWorkload[tname] = 0;
-                        teacherWorkload[tname] += parseInt(row.Periods);
+                    teacherIdList.forEach(tid => {
+                        if (!teacherWorkload[tid]) teacherWorkload[tid] = 0;
+                        teacherWorkload[tid] += parseInt(row.Periods);
                     });
                 });
                 
@@ -1211,8 +1214,8 @@
                 let score = 0;
                 const slot = `${day}_${period}`;
                 
-                teachers.forEach(teacher => {
-                    const preferences = this.staffPreferences[teacher];
+                teachers.forEach(teacherId => {
+                    const preferences = this.staffPreferences[teacherId];
                     if (preferences) {
                         if (preferences.preferredSlots.includes(slot)) {
                             score += 10; // Strong preference bonus
@@ -1228,6 +1231,19 @@
             
             normalizeTeacherName(name) {
                 return name ? name.toString().trim().replace(/\s+/g, ' ') : '';
+            }
+            
+            getTeacherIdAndName(name) {
+                const raw = this.normalizeTeacherName(name);
+                const match = raw.match(/\(([^)]+)\)\s*$/);
+                if (match) {
+                    const id = match[1].toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    if (!this.teacherIdMap[id]) this.teacherIdMap[id] = raw;
+                    return { id, name: this.teacherIdMap[id] };
+                }
+                const id = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
+                if (!this.teacherIdMap[id]) this.teacherIdMap[id] = raw;
+                return { id, name: this.teacherIdMap[id] };
             }
             
             // KEY FIX: New method to check if subject has remaining periods to allocate
@@ -1329,9 +1345,17 @@
                 let totalPreferences = 0;
                 let honoredPreferences = 0;
                 const warnings = [];
-
+ 
                 subjects.forEach(subjectData => {
                     totalRequired += subjectData.periods;
+                    
+                    // Count preferences for this subject
+                    subjectData.teachers.forEach(teacherId => {
+                        const prefs = this.staffPreferences[teacherId];
+                        if (prefs && prefs.preferredSlots.length > 0) {
+                            totalPreferences++;
+                        }
+                    });
                     
                     const subjectKey = subjectData.subjectKey;
                     
@@ -1363,6 +1387,12 @@
                                     let score = Math.random();
                                     const prefScore = this.getSlotPreferenceScore(day, period, subjectData.teachers);
                                     score += prefScore;
+                                    // Prefer Games at last period if possible
+                                    if (/games/i.test(subjectData.subject)) {
+                                        if (period === this.settings.totalPeriods - 1) score += 100;
+                                        else if (period === this.settings.totalPeriods - 2) score += 10;
+                                        else score -= 10;
+                                    }
                                     if (score > bestScore) {
                                         bestScore = score;
                                         bestSlot = { day, period };
@@ -1389,7 +1419,7 @@
                         warnings.push(`⚠️ ${classKey}: Could only allocate ${allocated}/${subjectData.periods} periods for ${subjectData.subject} (${subjectData.teachers.join(', ')})`);
                     }
                 });
-
+ 
                 return { 
                     allocated: totalAllocated, 
                     required: totalRequired, 
@@ -1403,7 +1433,7 @@
                 const [dept, year, section] = classKey.split('_');
                 const classInfo = `${dept} Y${year}-${section}`;
                 
-                const normalizedTeachers = teachers.map(t => this.normalizeTeacherName(t));
+                const teacherIds = teachers;
                 
                 if (isLab) {
                     // Allocate lab periods
@@ -1411,7 +1441,7 @@
                     this.timetableData[classKey][day][period + 1] = `${subject} (Lab)`;
                     
                     // Update teacher schedules and timetables
-                    normalizedTeachers.forEach(teacher => {
+                    teacherIds.forEach(teacher => {
                         if (!this.teacherSchedule[teacher]) this.teacherSchedule[teacher] = [];
                         this.teacherSchedule[teacher].push(`${day}_${period}`);
                         this.teacherSchedule[teacher].push(`${day}_${period + 1}`);
@@ -1432,7 +1462,7 @@
                     this.timetableData[classKey][day][period] = subject;
                     
                     // Update teacher schedules and timetables
-                    normalizedTeachers.forEach(teacher => {
+                    teacherIds.forEach(teacher => {
                         if (!this.teacherSchedule[teacher]) this.teacherSchedule[teacher] = [];
                         this.teacherSchedule[teacher].push(`${day}_${period}`);
                         
@@ -1564,10 +1594,15 @@
                     </div>`;
                 }
 
-                // Sort teachers alphabetically
-                const sortedTeachers = Object.keys(this.teacherTimetables).sort();
+                // Sort teachers alphabetically by display name
+                const sortedTeachers = Object.keys(this.teacherTimetables).sort((a, b) => {
+                    const nameA = (this.teacherIdMap[a] || a).toLowerCase();
+                    const nameB = (this.teacherIdMap[b] || b).toLowerCase();
+                    return nameA.localeCompare(nameB);
+                });
 
                 for (const teacher of sortedTeachers) {
+                    const teacherLabel = this.teacherIdMap[teacher] || teacher;
                     // Calculate teacher's workload
                     let totalPeriods = 0;
                     let preferredPeriods = 0;
@@ -1593,7 +1628,7 @@
 
                     html += `
                         <div class="teacher-title">
-                            👨‍🏫 ${teacher} 
+                            👨‍🏫 ${teacherLabel} 
                             <span style="font-size: 0.9em; font-weight: normal;">
                                 (${totalPeriods} periods/week)
                                 ${preferredPeriods > 0 ? `| ${preferredPeriods} preferred slots` : ''}
@@ -1693,7 +1728,7 @@
                 for (const teacher in this.teacherTimetables) {
                     for (let period = 0; period < this.settings.totalPeriods; period++) {
                         let row = {
-                            Teacher: teacher,
+                            Teacher: this.teacherIdMap[teacher] || teacher,
                             Period: period + 1
                         };
                         this.settings.days.forEach(day => {
@@ -1727,6 +1762,7 @@
                 this.manualPreferences = {};
                 this.csvData = null;
                 this.subjectAllocationTracker = {}; // Clear the new tracker
+                this.teacherIdMap = {}; // Clear the new map
                 this.stats = {
                     totalClasses: 0,
                     totalSubjects: 0,
