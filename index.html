@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Advanced Timetable Generator</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+    <meta http-equiv="Pragma" content="no-cache"/>
+    <meta http-equiv="Expires" content="0"/>
     
     <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
@@ -53,6 +56,7 @@
             color: #6c757d;
             font-size: 1.1rem;
         }
+        .version-badge { color:#6c757d; font-size:0.9rem; margin-top:6px; }
         
         .controls {
             display: grid;
@@ -470,8 +474,9 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎓 Advanced Timetable Generator</h1>
-            <p>Intelligent scheduling with teacher preferences and lab management</p>
+            <h1>Advanced Timetable Generator</h1>
+            <p>Upload a CSV file, configure settings, and generate optimized timetables</p>
+            <div class="version-badge">Build: 2025-08-14-01</div>
         </div>
         
         <div class="controls">
